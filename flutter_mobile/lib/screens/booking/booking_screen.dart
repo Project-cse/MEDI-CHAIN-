@@ -1,0 +1,886 @@
+import 'dart:async';
+import 'dart:io' show Platform;
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+
+import '../../constants/app_colors.dart';
+import '../../models/doctor_model.dart';
+import '../../models/patient_booking_info.dart';
+import '../../models/slot_model.dart';
+import '../../providers/appointment_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/booking_state_provider.dart';
+import '../../providers/doctor_provider.dart';
+import '../../providers/service_providers.dart';
+import '../../services/payment_service.dart';
+import '../../services/razorpay_checkout_service.dart';
+import '../../routes/route_names.dart';
+import '../../utils/currency_formatter.dart';
+import '../../utils/date_formatter.dart';
+import '../../utils/specialization_symptoms.dart';
+import '../../widgets/common/app_loader.dart';
+import '../../widgets/common/app_snackbar.dart';
+import '../../widgets/booking/premium_booking_theme.dart';
+import '../../widgets/booking/premium_booking_widgets.dart';
+import '../../widgets/booking/premium_date_chip.dart';
+import '../../widgets/booking/premium_opd_slot_chip.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+/// Matches mobile/app/book-appointment.tsx
+class BookingScreen extends ConsumerStatefulWidget {
+  const BookingScreen({super.key, required this.doctorId, this.preferOnline = false});
+
+  final String doctorId;
+  final bool preferOnline;
+
+  @override
+  ConsumerState<BookingScreen> createState() => _BookingScreenState();
+}
+
+class _BookingScreenState extends ConsumerState<BookingScreen> {
+  int _dayIndex = 0;
+  SlotModel? _selectedSlot;
+  /// Pay in advance via Razorpay on the in-clinic booking flow (not video consult).
+  bool _payOnline = false;
+  bool _booking = false;
+  final _note = TextEditingController();
+  final _dateScroll = ScrollController();
+  final Set<String> _selectedSymptoms = {};
+  PlatformFile? _reportFile;
+  String? _reportFileName;
+  late final List<({String label, int dayNum, String slotDate, String monthShort})> _week;
+
+  PatientBookingInfo get _patient =>
+      ref.read(bookingPatientProvider) ?? PatientBookingInfo(name: 'Patient', isSelf: true);
+
+  Future<void> _completeBooking({
+    required DoctorModel doctor,
+    required String selectedDate,
+    required Map<String, dynamic> result,
+    required String visitType,
+    required String paymentMethod,
+  }) async {
+    final apptId = result['appointmentId']?.toString() ?? '';
+    final token = result['tokenNumber'] is num
+        ? (result['tokenNumber'] as num).toInt()
+        : int.tryParse('${result['tokenNumber'] ?? ''}');
+    final queue = result['queuePosition'] is num
+        ? (result['queuePosition'] as num).toInt()
+        : int.tryParse('${result['queuePosition'] ?? ''}');
+    final bookingId = result['bookingId']?.toString() ?? result['booking_id']?.toString();
+
+    ref.read(bookingDraftProvider.notifier).state = BookingDraft(
+      doctor: doctor,
+      date: selectedDate,
+      time: _selectedSlot!.time,
+      visitType: visitType,
+      notes: _note.text,
+      appointmentId: apptId,
+      bookingId: bookingId,
+      tokenNumber: token,
+      queuePosition: queue,
+      patient: _patient,
+      hospitalName: doctor.hospitalName,
+      location: doctor.addressLine1 ?? doctor.address,
+      roomNo: doctor.addressLine2,
+    );
+    ref.invalidate(upcomingAppointmentsProvider);
+    if (mounted) context.go(RouteNames.bookingSuccess);
+  }
+
+  Future<void> _pickReport() async {
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
+    );
+    if (picked != null && picked.files.isNotEmpty) {
+      setState(() {
+        _reportFile = picked.files.first;
+        _reportFileName = picked.files.first.name;
+      });
+    }
+  }
+
+  /// Slot API mode: online = video consult slots; offline = OPD blocks.
+  String get _slotMode => widget.preferOnline ? 'online' : 'offline';
+
+  bool get _requiresRazorpay => widget.preferOnline || _payOnline;
+
+  Future<Map<String, dynamic>> _collectRazorpayPayment({
+    required PaymentService paymentService,
+    required PaymentOrderResult order,
+    required DoctorModel doctor,
+  }) async {
+    final useNativeCheckout = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+    if (useNativeCheckout) {
+      final user = ref.read(authProvider).user;
+      final checkout = RazorpayCheckoutService();
+      try {
+        final payment = await checkout.openCheckout(
+          key: order.razorpayKey,
+          orderId: order.orderId,
+          amountPaise: order.amount,
+          description: 'Consultation with ${doctor.name}',
+          customerName: user?.name,
+          customerEmail: user?.email,
+          customerPhone: user?.phone ?? _patient.phone,
+        );
+        return paymentService.verifyAppointmentPayment(
+          orderId: payment.orderId,
+          paymentId: payment.paymentId,
+          signature: payment.signature,
+          appointmentId: order.appointmentId,
+        );
+      } finally {
+        checkout.dispose();
+      }
+    }
+
+    final checkoutUrl = paymentService.checkoutUrl(order.checkoutToken);
+    final launched = await launchUrl(
+      Uri.parse(checkoutUrl),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched) {
+      throw Exception('Could not open payment page. Check your connection.');
+    }
+    return _waitForPaymentCompletion(order);
+  }
+
+  Future<void> _submitBooking(DoctorModel doctor) async {
+    if (_selectedSlot == null) {
+      AppSnackbar.show(context, 'Please select date and time');
+      return;
+    }
+
+    final availableSymptoms = SpecializationSymptoms.forSpecialization(doctor.specialization);
+    if (availableSymptoms.isNotEmpty && _selectedSymptoms.isEmpty) {
+      AppSnackbar.show(context, 'Please select at least one symptom');
+      return;
+    }
+
+    setState(() => _booking = true);
+    final selectedDate = _week[_dayIndex].slotDate;
+    final notes = _note.text.trim().isEmpty ? null : _note.text.trim();
+    final symptoms = _selectedSymptoms.toList();
+
+    try {
+      if (_requiresRazorpay) {
+        if (!_patient.isSelf) {
+          AppSnackbar.show(
+            context,
+            'Online payment: book for yourself, or choose Pay at clinic for others.',
+          );
+          return;
+        }
+        final paymentService = ref.read(paymentServiceProvider);
+        final isVideo = widget.preferOnline;
+        final fee = isVideo ? doctor.videoConsultationFee : doctor.consultationFee;
+        final feePaise = (fee * 100).round();
+        final order = await paymentService.createAppointmentOrder(
+          amountPaise: feePaise,
+          doctorId: widget.doctorId,
+          appointmentDate: selectedDate,
+          appointmentTime: _selectedSlot!.time,
+          notes: notes,
+          slotId: _selectedSlot!.slotId,
+          slotType: _selectedSlot!.slotType,
+          mode: isVideo ? 'online' : 'offline',
+          visitType: isVideo ? 'Online' : 'In-clinic',
+        );
+        if (!mounted) return;
+
+        Map<String, dynamic> payResult;
+        try {
+          payResult = await _collectRazorpayPayment(
+            paymentService: paymentService,
+            order: order,
+            doctor: doctor,
+          );
+        } catch (e) {
+          await paymentService.recordFailedPayment(
+            orderId: order.orderId,
+            appointmentId: order.appointmentId,
+            error: e.toString(),
+          );
+          rethrow;
+        }
+        final enriched = <String, dynamic>{
+          'appointmentId': payResult['appointment_id']?.toString() ?? '',
+          'bookingId': payResult['bookingId'] ?? payResult['booking_id'],
+          'tokenNumber': payResult['tokenNumber'],
+        };
+        await _completeBooking(
+          doctor: doctor,
+          selectedDate: selectedDate,
+          result: enriched,
+          visitType: isVideo ? 'Online' : 'In-clinic',
+          paymentMethod: 'onlinePayment',
+        );
+        return;
+      }
+
+      final result = await ref.read(appointmentRepositoryProvider).book(
+            doctorId: widget.doctorId,
+            slotDate: selectedDate,
+            slotTime: _selectedSlot!.time,
+            symptoms: symptoms,
+            notes: notes,
+            hospitalName: doctor.hospitalName,
+            location: doctor.address,
+            patient: _patient,
+            paymentMethod: 'payOnVisit',
+            visitType: 'In-clinic',
+            mode: 'offline',
+            slotId: _selectedSlot!.slotId,
+            slotType: _selectedSlot!.slotType,
+            prescription: _reportFile,
+          );
+      await _completeBooking(
+        doctor: doctor,
+        selectedDate: selectedDate,
+        result: result,
+        visitType: 'In-clinic',
+        paymentMethod: 'payOnVisit',
+      );
+    } catch (e) {
+      if (mounted) {
+        AppSnackbar.show(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _booking = false);
+    }
+  }
+
+  Future<Map<String, dynamic>> _tryConfirmPaidOrder(
+    PaymentService paymentService,
+    String orderId,
+  ) async {
+    final status = await paymentService.getOrderStatus(orderId);
+    if (status['failed'] == true) {
+      throw Exception('Payment failed at Razorpay');
+    }
+    if (status['paid'] == true) {
+      return paymentService.confirmPaidOrder(orderId);
+    }
+    throw Exception('Payment not completed yet. Finish payment in Razorpay checkout.');
+  }
+
+  Future<Map<String, dynamic>> _waitForPaymentCompletion(PaymentOrderResult order) async {
+    final paymentService = ref.read(paymentServiceProvider);
+    final cancelCompleter = Completer<void>();
+    final confirmNowCompleter = Completer<void>();
+    var statusLabel = 'Complete payment in the Razorpay tab, then return here.';
+    var dialogOpen = false;
+    void Function(void Function())? dialogSetState;
+
+    if (mounted) {
+      dialogOpen = true;
+      unawaited(
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => PopScope(
+            canPop: false,
+            child: StatefulBuilder(
+              builder: (context, setDialogState) {
+                dialogSetState = setDialogState;
+                return AlertDialog(
+                  title: const Text('Waiting for payment'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Center(child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: CircularProgressIndicator(),
+                      )),
+                      Text(statusLabel),
+                      const SizedBox(height: 12),
+                      Text('Order: ${order.orderId}', style: const TextStyle(fontSize: 12)),
+                      const SizedBox(height: 8),
+                      Text(
+                        'After "Payment successful" on Razorpay, tap I\'ve paid below.',
+                        style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        if (!cancelCompleter.isCompleted) cancelCompleter.complete();
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () {
+                        if (!confirmNowCompleter.isCompleted) confirmNowCompleter.complete();
+                      },
+                      child: const Text("I've paid"),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ).whenComplete(() => dialogOpen = false),
+      );
+    }
+
+    try {
+      final deadline = DateTime.now().add(const Duration(minutes: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        if (cancelCompleter.isCompleted) {
+          throw Exception('Payment cancelled');
+        }
+        if (!mounted) throw Exception('Payment cancelled');
+
+        await Future.any<void>([
+          Future<void>.delayed(const Duration(seconds: 2)),
+          cancelCompleter.future,
+          confirmNowCompleter.future,
+        ]);
+        if (cancelCompleter.isCompleted) {
+          throw Exception('Payment cancelled');
+        }
+
+        try {
+          final result = await _tryConfirmPaidOrder(paymentService, order.orderId);
+          return result;
+        } catch (e) {
+          final msg = e.toString().replaceFirst('Exception: ', '');
+          if (msg.contains('Payment failed') || msg.contains('Payment cancelled')) {
+            rethrow;
+          }
+          statusLabel = msg.contains('not completed')
+              ? 'Finish payment in Razorpay, then tap I\'ve paid.'
+              : 'Confirming booking… $msg';
+          dialogSetState?.call(() {});
+        }
+      }
+
+      if (cancelCompleter.isCompleted) {
+        throw Exception('Payment cancelled');
+      }
+
+      final manual = await _showPaymentVerifyDialog(order, statusLabel);
+      if (manual == null) {
+        throw Exception('Payment cancelled');
+      }
+      return paymentService.verifyAppointmentPayment(
+        orderId: manual.$1,
+        paymentId: manual.$2,
+        signature: manual.$3,
+        appointmentId: order.appointmentId,
+      );
+    } finally {
+      if (mounted && dialogOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
+  }
+
+  Future<(String, String, String)?> _showPaymentVerifyDialog(
+    PaymentOrderResult order, [
+    String? statusHint,
+  ]) async {
+    final paymentId = TextEditingController();
+    final signature = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Complete payment'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              statusHint != null
+                  ? 'Payment status: $statusHint\n\nFinish payment in the Razorpay tab. The app checks automatically; use manual verify only if needed.'
+                  : 'Finish payment in the browser tab, then paste Razorpay details below.',
+            ),
+            const SizedBox(height: 12),
+            Text('Order: ${order.orderId}', style: const TextStyle(fontSize: 12)),
+            TextField(controller: paymentId, decoration: const InputDecoration(labelText: 'Payment ID')),
+            TextField(controller: signature, decoration: const InputDecoration(labelText: 'Signature')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Verify')),
+        ],
+      ),
+    );
+    if (result != true || paymentId.text.isEmpty || signature.text.isEmpty) return null;
+    return (order.orderId, paymentId.text.trim(), signature.text.trim());
+  }
+
+  String get _patientSelectorPath {
+    final q = widget.preferOnline ? '?visit=online' : '';
+    return '/booking/patient/${widget.doctorId}$q';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _week = DateFormatter.buildNext5Days();
+    _payOnline = false;
+    final slotMode = widget.preferOnline ? 'online' : 'offline';
+    Future.microtask(() => prefetchDoctorSchedule(ref, widget.doctorId, mode: slotMode));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ref.read(bookingPatientProvider) == null) {
+        context.replace(_patientSelectorPath);
+      }
+    });
+  }
+
+  void _selectDay(int index) {
+    if (index < 0 || index >= _week.length) return;
+    setState(() {
+      _dayIndex = index;
+      _selectedSlot = null;
+    });
+    if (_dateScroll.hasClients) {
+      final offset = (index * 82.0).clamp(0.0, _dateScroll.position.maxScrollExtent);
+      _dateScroll.animateTo(offset, duration: const Duration(milliseconds: 280), curve: Curves.easeOutCubic);
+    }
+  }
+
+  void _advanceDate() {
+    if (_dayIndex < _week.length - 1) _selectDay(_dayIndex + 1);
+  }
+
+  Future<void> _openCalendarPicker() async {
+    final today = DateTime.now();
+    final last = today.add(Duration(days: _week.length - 1));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: today.add(Duration(days: _dayIndex)),
+      firstDate: today,
+      lastDate: last,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: PremiumBookingTheme.primaryBlue,
+            onPrimary: Colors.white,
+            surface: PremiumBookingTheme.white,
+            onSurface: PremiumBookingTheme.text,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final idx = _week.indexWhere(
+      (d) => d.dayNum == picked.day && d.monthShort == DateFormat('MMM').format(picked),
+    );
+    if (idx >= 0) _selectDay(idx);
+  }
+
+  @override
+  void dispose() {
+    _note.dispose();
+    _dateScroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final doctorAsync = ref.watch(doctorDetailProvider(widget.doctorId));
+    final selectedDate = _week[_dayIndex].slotDate;
+    final slotMode = _slotMode;
+    final scheduleAsync = ref.watch(
+      doctorScheduleProvider((doctorId: widget.doctorId, mode: slotMode)),
+    );
+
+    final pageTitle = widget.preferOnline ? 'Book Video Consultation' : 'Book Appointment';
+
+    return Scaffold(
+      backgroundColor: PremiumBookingTheme.background,
+      appBar: PremiumBookingAppBar(title: pageTitle),
+      body: doctorAsync.when(
+        loading: () => const AppLoader(),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(e.toString(), textAlign: TextAlign.center),
+          ),
+        ),
+        data: (doctor) {
+          final fee = widget.preferOnline ? doctor.videoConsultationFee : doctor.consultationFee;
+          final canBook = _selectedSlot != null;
+          final symptoms = SpecializationSymptoms.forSpecialization(doctor.specialization);
+          final ctaLabel = _booking
+              ? 'Confirming…'
+              : _requiresRazorpay
+                  ? 'Pay ${CurrencyFormatter.format(fee)} & Book'
+                  : 'Book Appointment';
+
+          return Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    PremiumBookingTheme.horizontalPadding,
+                    8,
+                    PremiumBookingTheme.horizontalPadding,
+                    24,
+                  ),
+                  children: [
+                    PremiumDoctorBookingCard(doctor: doctor),
+                    const SizedBox(height: PremiumBookingTheme.sectionGap),
+                    PremiumBookingSectionHeader(
+                      title: 'Select Date',
+                      trailing: PremiumViewCalendarAction(onTap: _openCalendarPicker),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      height: 108,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ListView.separated(
+                              controller: _dateScroll,
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _week.length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 10),
+                              itemBuilder: (_, i) {
+                                final d = _week[i];
+                                return PremiumDateChip(
+                                  weekdayLabel: d.label,
+                                  dayNum: d.dayNum,
+                                  monthShort: d.monthShort,
+                                  selected: i == _dayIndex,
+                                  onTap: () => _selectDay(i),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          PremiumDateNavButton(onTap: _advanceDate),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: PremiumBookingTheme.sectionGap),
+                    PremiumBookingSectionHeader(
+                      title: widget.preferOnline ? 'Video Consultation Slots' : 'OPD Time Slots',
+                      icon: Icons.schedule_rounded,
+                    ),
+                    const SizedBox(height: 14),
+                    scheduleAsync.when(
+                      skipLoadingOnReload: true,
+                      data: (schedule) {
+                        final day = schedule[selectedDate];
+                        final slots = day?.slots ?? const <SlotModel>[];
+                        if (slots.isEmpty) {
+                          return Text(
+                            'No available slots for this date',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: PremiumBookingTheme.textSecondary,
+                            ),
+                          );
+                        }
+                        if (slots.length == 2) {
+                          return Row(
+                            children: [
+                              for (var i = 0; i < slots.length; i++) ...[
+                                if (i > 0) const SizedBox(width: 12),
+                                Expanded(
+                                  child: PremiumOpdSlotChip(
+                                    label: DateFormatter.displayTime(slots[i].displayTime),
+                                    selected: _selectedSlot?.time == slots[i].time,
+                                    enabled: slots[i].available,
+                                    onTap: slots[i].available
+                                        ? () => setState(() => _selectedSlot = slots[i])
+                                        : null,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          );
+                        }
+                        return Column(
+                          children: [
+                            for (final s in slots) ...[
+                              PremiumOpdSlotChip(
+                                label: DateFormatter.displayTime(s.displayTime),
+                                selected: _selectedSlot?.time == s.time,
+                                enabled: s.available,
+                                onTap: s.available ? () => setState(() => _selectedSlot = s) : null,
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+                          ],
+                        );
+                      },
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(
+                          child: CircularProgressIndicator(color: PremiumBookingTheme.primaryBlue),
+                        ),
+                      ),
+                      error: (e, _) => Text(
+                        '$e',
+                        style: GoogleFonts.inter(color: PremiumBookingTheme.textSecondary),
+                      ),
+                    ),
+                    if (symptoms.isNotEmpty) ...[
+                      const SizedBox(height: PremiumBookingTheme.sectionGap),
+                      PremiumSymptomsCard(
+                        specialization: doctor.specialization,
+                        symptoms: symptoms,
+                        selected: _selectedSymptoms,
+                        onToggle: (s) => setState(() {
+                          if (_selectedSymptoms.contains(s)) {
+                            _selectedSymptoms.remove(s);
+                          } else {
+                            _selectedSymptoms.add(s);
+                          }
+                        }),
+                      ),
+                    ],
+                    const SizedBox(height: PremiumBookingTheme.sectionGap),
+                    _reportsCard(doctor),
+                    if (!widget.preferOnline) ...[
+                      const SizedBox(height: PremiumBookingTheme.sectionGap),
+                      _sectionTitle('Payment Mode'),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _visitPill(
+                              label: 'In-clinic',
+                              active: !_payOnline,
+                              onTap: () => setState(() => _payOnline = false),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _visitPill(
+                              label: 'Pay Online',
+                              active: _payOnline,
+                              onTap: () => setState(() => _payOnline = true),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (_payOnline)
+                        _infoBanner(
+                          icon: Icons.payment_rounded,
+                          text:
+                              'Pay ${CurrencyFormatter.format(doctor.consultationFee)} now via Razorpay before your visit.',
+                        )
+                      else
+                        Text(
+                          'In-clinic visits: pay at the hospital reception.',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: PremiumBookingTheme.textSecondary,
+                          ),
+                        ),
+                    ] else ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Video consultation fee: ${CurrencyFormatter.format(fee)}. Payment via Razorpay is required.',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: PremiumBookingTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: PremiumBookingTheme.sectionGap),
+                    _sectionTitle('Additional Note (Optional)'),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _note,
+                      maxLines: 3,
+                      style: GoogleFonts.inter(fontSize: 14, color: PremiumBookingTheme.text),
+                      decoration: InputDecoration(
+                        hintText: 'Any other details for the doctor...',
+                        hintStyle: GoogleFonts.inter(color: PremiumBookingTheme.textSecondary),
+                        filled: true,
+                        fillColor: PremiumBookingTheme.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: PremiumBookingTheme.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: PremiumBookingTheme.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: PremiumBookingTheme.accentBlue, width: 1.5),
+                        ),
+                        contentPadding: const EdgeInsets.all(16),
+                      ),
+                    ),
+                    const SizedBox(height: PremiumBookingTheme.sectionGap),
+                    const PremiumSecurityCard(),
+                  ],
+                ),
+              ),
+              PremiumBookAppointmentCta(
+                label: ctaLabel,
+                enabled: canBook,
+                loading: _booking,
+                onPressed: canBook && !_booking ? () => _submitBooking(doctor) : null,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String text) {
+    return Text(
+      text,
+      style: GoogleFonts.inter(
+        fontSize: 17,
+        fontWeight: FontWeight.w700,
+        color: PremiumBookingTheme.text,
+      ),
+    );
+  }
+
+  Widget _infoBanner({required IconData icon, required String text}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: PremiumBookingTheme.securityBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: PremiumBookingTheme.accentBlue.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: PremiumBookingTheme.accentBlue, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: PremiumBookingTheme.text,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _reportsCard(DoctorModel doctor) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: PremiumBookingTheme.white,
+        borderRadius: BorderRadius.circular(PremiumBookingTheme.cardRadius),
+        boxShadow: PremiumBookingTheme.cardShadow,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: PremiumBookingTheme.chipSelectedBg,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.description_outlined, size: 22, color: PremiumBookingTheme.accentBlue),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Have Medical Reports?',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: PremiumBookingTheme.text,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Upload lab reports, X-rays, or scans before your appointment.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: PremiumBookingTheme.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _pickReport,
+                  icon: const Icon(Icons.cloud_upload_outlined, size: 18),
+                  label: Text(
+                    _reportFileName ?? 'Upload Reports',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: PremiumBookingTheme.accentBlue,
+                    backgroundColor: PremiumBookingTheme.white,
+                    side: const BorderSide(color: PremiumBookingTheme.border),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                if (_reportFileName != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      _reportFileName!,
+                      style: GoogleFonts.inter(fontSize: 11, color: PremiumBookingTheme.accentBlue),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _visitPill({
+    required String label,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active ? PremiumBookingTheme.primaryBlue : PremiumBookingTheme.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: active ? PremiumBookingTheme.primaryBlue : PremiumBookingTheme.border,
+          ),
+          boxShadow: active ? PremiumBookingTheme.softShadow : null,
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+            color: active ? Colors.white : PremiumBookingTheme.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}

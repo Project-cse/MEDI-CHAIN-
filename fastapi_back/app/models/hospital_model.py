@@ -1,0 +1,196 @@
+import json
+from app.config.db import db
+from datetime import datetime
+
+# --- Hospital Model (Login-able) ---
+
+async def get_all_hospitals():
+    sql = "SELECT * FROM hospitals WHERE available = true ORDER BY name ASC"
+    return await db.fetch_all(sql)
+
+async def get_hospital_by_id(hospital_id: int):
+    hospital_id = int(hospital_id)
+    sql = "SELECT * FROM hospitals WHERE id = $1"
+    return await db.fetch_one(sql, hospital_id)
+
+async def get_hospital_by_email(email: str):
+    sql = "SELECT * FROM hospitals WHERE email = $1"
+    return await db.fetch_one(sql, email)
+
+async def create_hospital(data: dict):
+    sql = """
+        INSERT INTO hospitals (
+            name, email, password, image, address_line1, address_line2,
+            speciality, about, available, date, latitude, longitude
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING *
+    """
+    address = data.get('address', {})
+    values = [
+        data.get('name'),
+        data.get('email'),
+        data.get('password'),
+        data.get('image'),
+        address.get('line1', ''),
+        address.get('line2', ''),
+        data.get('speciality', []),
+        data.get('about', ''),
+        data.get('available', True),
+        int(datetime.now().timestamp() * 1000),
+        data.get('latitude'),
+        data.get('longitude')
+    ]
+    return await db.fetch_one(sql, *values)
+
+async def update_hospital(hospital_id: int, data: dict):
+    hospital_id = int(hospital_id)
+    sql = """
+        UPDATE hospitals SET
+            name = COALESCE($1, name),
+            image = COALESCE($2, image),
+            address_line1 = COALESCE($3, address_line1),
+            address_line2 = COALESCE($4, address_line2),
+            speciality = COALESCE($5, speciality),
+            about = COALESCE($6, about),
+            available = COALESCE($7, available),
+            latitude = COALESCE($8, latitude),
+            longitude = COALESCE($9, longitude),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $10
+        RETURNING *
+    """
+    address = data.get('address', {})
+    values = [
+        data.get('name'),
+        data.get('image'),
+        address.get('line1'),
+        address.get('line2'),
+        data.get('speciality'),
+        data.get('about'),
+        data.get('available'),
+        data.get('latitude'),
+        data.get('longitude'),
+        hospital_id
+    ]
+    return await db.fetch_one(sql, *values)
+
+async def delete_hospital(hospital_id: int):
+    hospital_id = int(hospital_id)
+    sql = "DELETE FROM hospitals WHERE id = $1 RETURNING *"
+    return await db.fetch_one(sql, hospital_id)
+
+
+# --- Hospital Tie-Up Model ---
+
+async def get_all_hospital_tieups():
+    sql = "SELECT * FROM hospital_tieups ORDER BY id ASC LIMIT 10"
+    return await db.fetch_all(sql)
+
+async def get_public_hospital_tieups():
+    sql = "SELECT * FROM hospital_tieups WHERE show_on_home = true ORDER BY id ASC LIMIT 10"
+    return await db.fetch_all(sql)
+
+async def get_hospital_tieup_by_id(tieup_id: int):
+    tieup_id = int(tieup_id)
+    sql = "SELECT * FROM hospital_tieups WHERE id = $1"
+    return await db.fetch_one(sql, tieup_id)
+
+async def create_hospital_tieup(data: dict):
+    sql = """
+        INSERT INTO hospital_tieups (name, address, contact, specialization, type, show_on_home, latitude, longitude)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *
+    """
+    values = [
+        data.get('name'),
+        data.get('address'),
+        data.get('contact'),
+        data.get('specialization'),
+        data.get('type', 'General'),
+        data.get('showOnHome', False),
+        data.get('latitude'),
+        data.get('longitude')
+    ]
+    return await db.fetch_one(sql, *values)
+
+async def update_hospital_tieup(tieup_id: int, data: dict):
+    tieup_id = int(tieup_id)
+    fields = []
+    values = []
+    param_count = 1
+
+    mapping = {
+        'name': 'name',
+        'address': 'address',
+        'contact': 'contact',
+        'specialization': 'specialization',
+        'type': 'type',
+        'showOnHome': 'show_on_home',
+        'latitude': 'latitude',
+        'longitude': 'longitude'
+    }
+
+    for key, db_key in mapping.items():
+        if key in data and data[key] is not None:
+            fields.append(f"{db_key} = ${param_count}")
+            values.append(data[key])
+            param_count += 1
+
+    if not fields:
+        return None
+    
+    fields.append(f"updated_at = CURRENT_TIMESTAMP")
+    sql = f"UPDATE hospital_tieups SET {', '.join(fields)} WHERE id = ${param_count} RETURNING *"
+    values.append(tieup_id)
+
+    return await db.fetch_one(sql, *values)
+
+async def delete_hospital_tieup(tieup_id: int):
+    tieup_id = int(tieup_id)
+    sql = "DELETE FROM hospital_tieups WHERE id = $1 RETURNING *"
+    return await db.fetch_one(sql, tieup_id)
+
+
+# --- Hospital Tie-Up Doctors ---
+
+async def get_hospital_tieup_doctors(hospital_id: int):
+    hospital_id = int(hospital_id)
+    sql = "SELECT * FROM hospital_tieup_doctors WHERE hospital_tieup_id = $1"
+    return await db.fetch_all(sql, hospital_id)
+
+async def get_all_hospital_tieup_doctors_with_hospitals():
+    sql = """
+        SELECT d.*, h.name as hospital_name, h.address as hospital_address
+        FROM hospital_tieup_doctors d
+        JOIN (
+            SELECT id, name, address FROM hospital_tieups
+            ORDER BY id ASC
+            LIMIT 10
+        ) h ON d.hospital_tieup_id = h.id
+    """
+    return await db.fetch_all(sql)
+
+async def add_hospital_tieup_doctor(hospital_id: int, data: dict):
+    hospital_id = int(hospital_id)
+    sql = """
+        INSERT INTO hospital_tieup_doctors (
+            hospital_tieup_id, name, qualification, specialization, experience, 
+            image, available, show_on_hospital_page
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *
+    """
+    values = [
+        hospital_id,
+        data.get('name'),
+        data.get('qualification'),
+        data.get('specialization'),
+        data.get('experience'),
+        data.get('image', ''),
+        data.get('available', True),
+        data.get('showOnHospitalPage', True)
+    ]
+    return await db.fetch_one(sql, *values)
+
+async def delete_hospital_tieup_doctor(doctor_id: int):
+    sql = "DELETE FROM hospital_tieup_doctors WHERE id = $1 RETURNING *"
+    return await db.fetch_one(sql, doctor_id)

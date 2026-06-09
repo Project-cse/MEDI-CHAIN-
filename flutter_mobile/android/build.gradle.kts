@@ -1,0 +1,39 @@
+import com.android.build.gradle.LibraryExtension
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+}
+
+// Force all Android library plugins (file_picker, etc.) to compileSdk 36.
+subprojects {
+    afterEvaluate {
+        extensions.findByType<LibraryExtension>()?.compileSdk = 36
+        // Video consult: agora_rtc_engine bundles iris-rtc + agora-special-full with the
+        // same Android namespace (io.agora.rtc) → manifest merger fails. Keep iris-rtc only.
+        configurations.configureEach {
+            exclude(group = "io.agora.rtc", module = "agora-special-full")
+        }
+    }
+}
+
+val newBuildDir: Directory =
+    rootProject.layout.buildDirectory
+        .dir("../../build")
+        .get()
+rootProject.layout.buildDirectory.value(newBuildDir)
+
+subprojects {
+    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.value(newSubprojectBuildDir)
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register<Delete>("clean") {
+    delete(rootProject.layout.buildDirectory)
+}

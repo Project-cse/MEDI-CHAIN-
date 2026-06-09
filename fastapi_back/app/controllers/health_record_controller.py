@@ -1,0 +1,202 @@
+import cloudinary.uploader
+import json
+import os
+from datetime import datetime
+from fastapi import UploadFile
+from typing import List, Optional
+from app.models import health_record_model, appointment_model
+from app.utils.formatters import format_health_record
+
+async def create_health_record(
+    user_id: int,
+    record_type: str,
+    title: str,
+    description: str,
+    doctor_name: str,
+    doc_id: Optional[int],
+    appointment_id: Optional[int],
+    date_str: str,
+    tags: str,
+    is_important: bool,
+    files: List[UploadFile]
+):
+    try:
+        # Set defaults
+        if not record_type: record_type = 'General'
+        if not date_str: date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        if not title or not title.strip():
+            title = f"Medical Report - {date_str}"
+
+        # Parse tags
+        tags_array = []
+        if tags:
+            try:
+                tags_array = json.loads(tags)
+            except:
+                tags_array = [tags]
+
+        # Upload files to Cloudinary
+        uploaded_files = []
+        for file in files:
+            try:
+                is_pdf = file.content_type == 'application/pdf'
+                
+                # Read file content for upload
+                file_content = await file.read()
+                
+                upload_result = cloudinary.uploader.upload(
+                    file_content,
+                    folder=f"health-records/{user_id}",
+                    resource_type="auto",
+                    access_mode="public",
+                )
+
+                uploaded_files.append({
+                    "url": upload_result.get('secure_url'),
+                    "fileName": file.filename,
+                    "fileType": 'pdf' if is_pdf else (file.content_type.split('/')[-1] if file.content_type else 'unknown'),
+                    "fileSize": len(file_content),
+                    "cloudinaryPublicId": upload_result.get('public_id')
+                })
+            except Exception as upload_err:
+                print(f"File upload error: {upload_err}")
+
+        record_data = {
+            "userId": user_id,
+            "appointmentId": appointment_id,
+            "docId": doc_id,
+            "recordType": record_type,
+            "title": title,
+            "description": description or '',
+            "doctorName": doctor_name or '',
+            "date": datetime.strptime(date_str, '%Y-%m-%d') if date_str else datetime.now(),
+            "files": uploaded_files,
+            "tags": tags_array,
+            "isImportant": is_important,
+            "uploadedBeforeAppointment": bool(appointment_id)
+        }
+
+        new_record = await health_record_model.create_health_record(record_data)
+        return {"success": True, "message": "Health record uploaded", "record": format_health_record(new_record)}
+
+    except Exception as e:
+        print(f"Create Health Record Error: {e}")
+        return {"success": False, "message": str(e)}
+
+def _attachments_list(record: dict) -> list:
+    attachments = record.get('attachments', [])
+    if isinstance(attachments, str):
+        attachments = json.loads(attachments)
+    return attachments if isinstance(attachments, list) else []
+
+
+async def _get_record_file_meta(user_id: int, record_id: int, file_index: int):
+    record = await health_record_model.get_health_record_by_id(record_id)
+    if not record or record['user_id'] != user_id:
+        return None, None
+    attachments = _attachments_list(record)
+    if not attachments or file_index < 0 or file_index >= len(attachments):
+        return None, None
+    return record, attachments[file_index]
+
+
+async def stream_record_file(user_id: int, record_id: int, file_index: int = 0):
+    """Fetch file bytes for inline viewing (bypasses browser Cloudinary PDF issues)."""
+    try:
+        from app.services.cloudinary_delivery import fetch_file_bytes
+
+        _, file_meta = await _get_record_file_meta(user_id, record_id, file_index)
+        if not file_meta:
+            return {"success": False, "message": "Record or file not found"}
+
+        content, content_type, filename = await fetch_file_bytes(file_meta)
+        return {
+            "success": True,
+            "content": content,
+            "contentType": content_type,
+            "fileName": filename,
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+async def get_record_file_view_url(user_id: int, record_id: int, file_index: int = 0):
+    try:
+        from app.services.cloudinary_delivery import get_viewable_url
+
+        _, file_meta = await _get_record_file_meta(user_id, record_id, file_index)
+        if not file_meta:
+            return {"success": False, "message": "Record or file not found"}
+        view_url = get_viewable_url(file_meta)
+        if not view_url:
+            return {"success": False, "message": "No viewable URL for this file"}
+
+        return {
+            "success": True,
+            "viewUrl": view_url,
+            "fileName": file_meta.get('fileName'),
+            "fileType": file_meta.get('fileType'),
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+async def get_health_records(user_id: int, params: dict):
+    try:
+        params['userId'] = user_id
+        records = await health_record_model.get_health_records(params)
+        formatted_records = [format_health_record(r) for r in records]
+        return {"success": True, "records": formatted_records}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+async def delete_health_record(user_id: int, record_id: int):
+    try:
+        record = await health_record_model.get_health_record_by_id(record_id)
+        if not record or record['user_id'] != user_id:
+            return {"success": False, "message": "Record not found or unauthorized"}
+
+        # Delete from Cloudinary
+        attachments = record.get('attachments', [])
+        if isinstance(attachments, str):
+            attachments = json.loads(attachments)
+            
+        for file in attachments:
+            if file.get('cloudinaryPublicId'):
+                try:
+                    cloudinary.uploader.destroy(file['cloudinaryPublicId'])
+                except: pass
+
+        await health_record_model.delete_health_record(record_id)
+        return {"success": True, "message": "Record deleted successfully"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+async def get_patient_records_for_doctor(doc_id: int, appointment_id: int):
+    try:
+        appointment = await appointment_model.get_appointment_by_id(appointment_id)
+        if not appointment or appointment['doctor_id'] != doc_id:
+            return {"success": False, "message": "Unauthorized access"}
+
+        records = await health_record_model.get_health_records_by_user_id(appointment['user_id'])
+        formatted_records = [format_health_record(r) for r in records]
+        return {"success": True, "records": formatted_records}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+async def mark_record_as_viewed(doc_id: int, record_id: int):
+    try:
+        # Check if record exists
+        record = await health_record_model.get_health_record_by_id(record_id)
+        if not record:
+            return {"success": False, "message": "Record not found"}
+
+        # Update viewed status
+        await health_record_model.update_health_record(record_id, {
+            "viewedByDoctor": True,
+            "viewedAt": datetime.now()
+        })
+        return {"success": True, "message": "Record marked as viewed"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
