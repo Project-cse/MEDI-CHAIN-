@@ -72,15 +72,16 @@ async def update_status(
     reject_reason: Optional[str] = None,
     consultation_id: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
+    # Cast $2/$3 so asyncpg does not mix text vs varchar for the same parameter.
     return await db.fetch_row(
         """
         UPDATE call_sessions
-        SET status = $2,
+        SET status = $2::varchar,
             updated_at = NOW(),
-            accepted_at = CASE WHEN $2 = 'accepted' THEN NOW() ELSE accepted_at END,
-            rejected_at = CASE WHEN $2 IN ('rejected', 'busy', 'cancelled', 'missed') THEN NOW() ELSE rejected_at END,
-            ended_at = CASE WHEN $2 IN ('completed', 'cancelled', 'rejected', 'busy', 'missed') THEN NOW() ELSE ended_at END,
-            reject_reason = COALESCE($3, reject_reason),
+            accepted_at = CASE WHEN $2::varchar = 'accepted' THEN NOW() ELSE accepted_at END,
+            rejected_at = CASE WHEN $2::varchar IN ('rejected', 'busy', 'cancelled', 'missed') THEN NOW() ELSE rejected_at END,
+            ended_at = CASE WHEN $2::varchar IN ('completed', 'cancelled', 'rejected', 'busy', 'missed') THEN NOW() ELSE ended_at END,
+            reject_reason = COALESCE($3::varchar, reject_reason),
             consultation_id = COALESCE($4, consultation_id)
         WHERE id = $1
         RETURNING *

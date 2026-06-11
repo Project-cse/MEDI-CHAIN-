@@ -12,8 +12,8 @@ Restart FastAPI after changing these values.
 ## Channel & UIDs
 
 - Channel name: `medi_appt_{appointmentId}`
-- Patient UID: `user_id % 2147483647`
-- Doctor UID: `doctor_id % 2147483647`
+- Patient UID: `user_id % 1_000_000_000` (low range)
+- Doctor UID: `1_000_000_000 + doctor_id` (high range — avoids UID_CONFLICT when ids match)
 
 Both sides join the **same channel** with role-specific RTC tokens from the backend.
 

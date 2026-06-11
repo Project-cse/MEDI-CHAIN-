@@ -34,6 +34,21 @@ def channel_for_appointment(appointment_id: int) -> str:
     return f"medi_appt_{appointment_id}"
 
 
+# Agora UIDs must be unique per channel. Patient and doctor DB ids can collide (e.g. both 54).
+_DOCTOR_UID_OFFSET = 1_000_000_000
+_MAX_UID = 2_147_483_647
+
+
+def uid_for_patient(user_id: int) -> int:
+    uid = int(user_id) % _DOCTOR_UID_OFFSET
+    return uid if uid > 0 else 1
+
+
+def uid_for_doctor(doctor_id: int) -> int:
+    uid = (_DOCTOR_UID_OFFSET + int(doctor_id)) % _MAX_UID
+    return uid if uid > 0 else _DOCTOR_UID_OFFSET
+
+
 def build_rtc_token(channel_name: str, uid: int, expire_seconds: int = 3600) -> str | None:
     if RtcTokenBuilder is None:
         return None
