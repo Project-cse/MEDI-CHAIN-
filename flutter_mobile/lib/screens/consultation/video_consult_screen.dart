@@ -223,9 +223,6 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
       );
       await engine.enableVideo();
       var publishCamera = !_cameraBlocked;
-      if (!kIsWeb) {
-        await engine.setEnableSpeakerphone(_speakerOn);
-      }
       await engine
           .joinChannel(
             token: creds.token,
@@ -244,6 +241,11 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
         throw Exception('Could not join video channel. Ask the doctor to re-accept the call.');
       });
       AgoraSessionManager.log('PATIENT_JOINED channel=${creds.channel} uid=${creds.uid}');
+      if (!kIsWeb) {
+        try {
+          await engine.setEnableSpeakerphone(_speakerOn);
+        } catch (_) {}
+      }
       if (!kIsWeb && publishCamera) {
         try {
           await engine.startPreview();
