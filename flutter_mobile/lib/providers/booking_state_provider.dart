@@ -26,6 +26,8 @@ class BookingDraft {
 
   final String? bookingId;
 
+  final String? publicId;
+
   final int? tokenNumber;
 
   final int? queuePosition;
@@ -58,6 +60,8 @@ class BookingDraft {
 
     this.bookingId,
 
+    this.publicId,
+
     this.tokenNumber,
 
     this.queuePosition,
@@ -88,6 +92,8 @@ class BookingDraft {
 
     String? bookingId,
 
+    String? publicId,
+
     int? tokenNumber,
 
     int? queuePosition,
@@ -117,6 +123,8 @@ class BookingDraft {
       appointmentId: appointmentId ?? this.appointmentId,
 
       bookingId: bookingId ?? this.bookingId,
+
+      publicId: publicId ?? this.publicId,
 
       tokenNumber: tokenNumber ?? this.tokenNumber,
 

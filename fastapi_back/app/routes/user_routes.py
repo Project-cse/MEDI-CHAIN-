@@ -296,7 +296,7 @@ async def get_doctor_status(docId: str):
 @router.post("/mark-alerted")
 async def mark_alerted(req: Request, user_id: int = Depends(auth_user)):
     body = await req.json()
-    return await user_controller.mark_alerted(body.get('appointmentId'))
+    return await user_controller.mark_alerted(user_id, body.get('appointmentId'))
 
 # Emergency Contacts
 @router.get("/emergency-contacts")

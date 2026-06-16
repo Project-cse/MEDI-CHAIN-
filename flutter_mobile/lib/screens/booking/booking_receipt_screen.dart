@@ -131,6 +131,7 @@ class _BookingReceiptScreenState extends ConsumerState<BookingReceiptScreen> {
 
     return AppointmentReceiptData(
       bookingId: bookingId,
+      publicId: appt?.publicId ?? draft?.publicId,
       tokenNumber: appt?.tokenNumber ?? draft?.tokenNumber,
       patientName: appt?.patientName ?? draft?.patient.name ?? p?.name ?? context.l10n.receiptPatient,
       doctorName: appt?.doctorName?.isNotEmpty == true ? appt!.doctorName : (draft?.doctor.name ?? ''),

@@ -11,6 +11,7 @@ import 'receipt_location_helper.dart';
 class AppointmentReceiptData {
   const AppointmentReceiptData({
     required this.bookingId,
+    this.publicId,
     this.tokenNumber,
     required this.patientName,
     required this.doctorName,
@@ -26,6 +27,7 @@ class AppointmentReceiptData {
   });
 
   final String bookingId;
+  final String? publicId;
   final int? tokenNumber;
   final String patientName;
   final String doctorName;
@@ -168,6 +170,14 @@ Future<Uint8List> buildAppointmentReceiptPdf(AppointmentReceiptData data, AppLoc
                 label: l10n.receiptAmount,
                 title: 'Rs.${data.amount!.toStringAsFixed(0)}',
                 subtitle: pdfSafe(data.status),
+                labelStyle: labelStyle,
+                titleStyle: titleStyle,
+                subtitleStyle: subtitleStyle,
+              ),
+            if (data.publicId != null && data.publicId!.trim().isNotEmpty)
+              _detailRow(
+                label: 'Appointment ID',
+                title: pdfSafe(data.publicId!.toUpperCase()),
                 labelStyle: labelStyle,
                 titleStyle: titleStyle,
                 subtitleStyle: subtitleStyle,

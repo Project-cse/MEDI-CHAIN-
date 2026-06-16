@@ -26,7 +26,7 @@ async def get_user_lab_bookings(user_id: int = Depends(auth_user)):
 @router.post("/cancel")
 async def cancel_lab_test(req: Request, user_id: int = Depends(auth_user)):
     body = await req.json()
-    return await lab_controller.cancel_lab_test(body.get('id'))
+    return await lab_controller.cancel_lab_test(user_id, body.get('id'))
 
 # Admin Routes
 @router.post("/add")

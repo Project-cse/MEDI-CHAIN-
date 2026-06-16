@@ -170,11 +170,13 @@ def appointment_booked_message(
     token_number,
     hospital_name: str,
     location: str = "",
+    appointment_public_id: Optional[str] = None,
 ) -> str:
     first = (name or "there").split()[0]
     date_fmt = _format_date(slot_date)
     loc_line = f"\n📍 <b>Location:</b> {_e(location or hospital_name)}" if (location or hospital_name) else ""
     token_line = f"\n🎫 <b>Token:</b> #{token_number}" if token_number else ""
+    id_line = f"\n🆔 <b>Appointment ID:</b> <code>{_e(appointment_public_id)}</code>" if appointment_public_id else ""
     return (
         f"😊 Great choice, <b>{_e(first)}</b>!\n\n"
         f"Your appointment has been <b>confirmed</b>.\n\n"
@@ -182,6 +184,7 @@ def appointment_booked_message(
         f"📅 <b>{date_fmt}</b>\n"
         f"🕙 <b>{_e(slot_time)}</b>"
         f"{token_line}"
+        f"{id_line}"
         f"{loc_line}\n\n"
         "We'll remind you before your visit. 🔔"
     )

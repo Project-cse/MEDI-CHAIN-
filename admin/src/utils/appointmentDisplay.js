@@ -1,3 +1,8 @@
+/** Human-readable appointment ID (APT202600001). */
+export function getAppointmentPublicId(item) {
+  return item?.publicId || item?.public_id || null
+}
+
 /** Patient display name for doctor views. */
 export function getPatientName(item) {
   if (!item) return 'Patient'

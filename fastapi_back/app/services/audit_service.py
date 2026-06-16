@@ -18,11 +18,14 @@ async def log_access(
     metadata: Optional[dict[str, Any]] = None,
 ) -> None:
     try:
+        from app.utils.ownership import coerce_user_id
+
+        stable_actor_id = coerce_user_id(actor_id)
         await audit_log_model.insert_log(
             action=action,
             resource=resource,
             resource_id=str(resource_id) if resource_id is not None else None,
-            actor_id=actor_id,
+            actor_id=stable_actor_id,
             actor_role=actor_role,
             ip_address=ip_address,
             user_agent=user_agent,

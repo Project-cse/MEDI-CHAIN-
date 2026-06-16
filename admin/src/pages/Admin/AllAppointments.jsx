@@ -141,7 +141,12 @@ const AllAppointments = () => {
             filtered = filtered.filter(apt => {
                 const patientName = (apt.actualPatient && !apt.actualPatient.isSelf ? apt.actualPatient.name : apt.userData?.name) || ''
                 const docName = apt.docData?.name || ''
-                return patientName.toLowerCase().includes(lowSearch) || docName.toLowerCase().includes(lowSearch)
+                const publicId = (apt.publicId || apt.public_id || '').toLowerCase()
+                const bookingId = (apt.bookingId || apt.booking_id || '').toLowerCase()
+                return patientName.toLowerCase().includes(lowSearch)
+                    || docName.toLowerCase().includes(lowSearch)
+                    || publicId.includes(lowSearch)
+                    || bookingId.includes(lowSearch)
             })
         }
 

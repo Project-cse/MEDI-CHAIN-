@@ -406,6 +406,8 @@ async def _send_booking_confirmation_email(
     appointment_id,
     frontend_hospital_name: Optional[str],
     frontend_location: Optional[str],
+    appointment_public_id: Optional[str] = None,
+    booking_id: Optional[str] = None,
 ):
     try:
         email_details = {
@@ -416,7 +418,8 @@ async def _send_booking_confirmation_email(
             "time": slot_time,
             "fee": amount,
             "tokenNumber": token_number,
-            "bookingId": f"#APT{appointment_id}",
+            "publicId": appointment_public_id or f"APT{appointment_id}",
+            "bookingId": booking_id or f"#APT{appointment_id}",
         }
 
         address_line1 = doc_data.get('address_line1', '')
@@ -467,6 +470,7 @@ async def _send_booking_telegram_notification(
     appointment_id: int,
     frontend_hospital_name: Optional[str],
     frontend_location: Optional[str],
+    appointment_public_id: Optional[str] = None,
 ):
     try:
         from app.services import telegram_notify_service
@@ -507,6 +511,7 @@ async def _send_booking_telegram_notification(
             hospital_name=hospital_name,
             hospital_location=hospital_location,
             appointment_id=int(appointment_id),
+            appointment_public_id=appointment_public_id,
         )
     except Exception as tg_err:
         print(f"[WARNING] Telegram booking notify: {tg_err}")
@@ -514,6 +519,12 @@ async def _send_booking_telegram_notification(
 
 async def book_appointment(user_id: int, req_body: dict, prescription_file: Optional[UploadFile] = None):
     try:
+        from app.utils.ownership import reject_client_user_override
+
+        override_err = reject_client_user_override(req_body, user_id)
+        if override_err:
+            return override_err
+
         doc_id = req_body.get('docId')
         db_doc_id = doc_id
         if isinstance(doc_id, str):
@@ -745,6 +756,8 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
             except Exception as record_err:
                 print(f"[WARNING] Failed to autogenerate health record from prescription: {record_err}")
 
+        saved_booking_id = new_appointment.get('booking_id') or booking_id
+
         # Email runs in background so booking response is not blocked (~3–8s on Brevo).
         asyncio.create_task(_send_booking_confirmation_email(
             user_email=user_data['email'],
@@ -758,6 +771,8 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
             appointment_id=new_appointment['id'],
             frontend_hospital_name=frontend_hospital_name,
             frontend_location=frontend_location,
+            appointment_public_id=new_appointment.get('public_id'),
+            booking_id=saved_booking_id,
         ))
         asyncio.create_task(_send_booking_telegram_notification(
             user_id=user_id,
@@ -770,6 +785,7 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
             appointment_id=new_appointment['id'],
             frontend_hospital_name=frontend_hospital_name,
             frontend_location=frontend_location,
+            appointment_public_id=new_appointment.get('public_id'),
         ))
 
         # Trigger Real-time update for Admin Dashboard
@@ -782,8 +798,6 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
             "slotTime": slot_time,
             "actualPatient": actual_patient
         })
-
-        saved_booking_id = new_appointment.get('booking_id') or booking_id
 
         try:
             from app.services import fcm_service
@@ -803,6 +817,7 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
             "success": True,
             "message": "Appointment Booked",
             "appointmentId": new_appointment['id'],
+            "publicId": new_appointment.get('public_id'),
             "bookingId": saved_booking_id,
             "tokenNumber": token_number,
             "queuePosition": queue_data.get('queuePosition'),
@@ -852,6 +867,7 @@ async def list_appointments(
                     else 'In-clinic'
                 ),
                 "tokenNumber": apt['token_number'],
+                "publicId": apt.get('public_id'),
                 "bookingId": apt.get('booking_id'),
                 "queuePosition": apt['queue_position'],
                 "estimatedWaitTime": apt['estimated_wait_time']
@@ -929,7 +945,8 @@ async def cancel_appointment(user_id: int, appointment_id: int):
                     "date": str(appointment.get("slot_date", "")).replace("_", "/"),
                     "time": appointment.get("slot_time", ""),
                     "tokenNumber": appointment.get("token_number", "N/A"),
-                    "bookingId": f"#APT{appointment_id}",
+                    "publicId": appointment.get("public_id") or f"APT{appointment_id}",
+                    "bookingId": appointment.get("booking_id") or f"#APT{appointment_id}",
                 }
                 asyncio.create_task(
                     email_service.send_appointment_cancelled(
@@ -1072,8 +1089,13 @@ async def reset_password(req_body: dict):
         return {"success": True, "message": "Password reset successful"}
     except Exception as e:
         return {"success": False, "message": str(e)}
-async def mark_alerted(appointment_id: int):
+async def mark_alerted(user_id: int, appointment_id: int):
     try:
+        from app.utils.ownership import load_appointment_for_user
+
+        _, err = await load_appointment_for_user(int(appointment_id), user_id)
+        if err:
+            return err
         await appointment_model.update_appointment(appointment_id, {"alerted": True})
         return {"success": True, "message": "Marked as alerted"}
     except Exception as e:
@@ -1320,6 +1342,11 @@ async def get_merchant_upi():
 
 
 async def register_fcm_token(user_id: int, body: dict):
+    from app.utils.ownership import reject_client_user_override
+
+    override_err = reject_client_user_override(body, user_id)
+    if override_err:
+        return override_err
     token = (body.get("token") or body.get("fcm_token") or "").strip()
     if not token:
         return {"success": False, "message": "FCM token is required"}
@@ -1331,6 +1358,11 @@ async def register_fcm_token(user_id: int, body: dict):
 
 
 async def remove_fcm_token(user_id: int, body: dict):
+    from app.utils.ownership import reject_client_user_override
+
+    override_err = reject_client_user_override(body, user_id)
+    if override_err:
+        return override_err
     token = (body.get("token") or body.get("fcm_token") or "").strip()
     if not token:
         return {"success": False, "message": "FCM token is required"}

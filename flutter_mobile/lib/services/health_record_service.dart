@@ -25,6 +25,7 @@ class DownloadedReport {
 class HealthRecordItem {
   const HealthRecordItem({
     required this.id,
+    this.publicId,
     required this.title,
     required this.recordType,
     this.description,
@@ -34,6 +35,7 @@ class HealthRecordItem {
   });
 
   final String id;
+  final String? publicId;
   final String title;
   final String recordType;
   final String? description;
@@ -61,6 +63,7 @@ class HealthRecordItem {
     }
     return HealthRecordItem(
       id: '${json['id'] ?? json['_id'] ?? ''}',
+      publicId: (json['publicId'] ?? json['public_id'])?.toString(),
       title: '${json['title'] ?? 'Report'}',
       recordType: '${json['recordType'] ?? json['record_type'] ?? 'lab_report'}',
       description: json['description']?.toString(),

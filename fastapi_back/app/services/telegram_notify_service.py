@@ -72,6 +72,7 @@ async def notify_appointment_booked(
     hospital_name: str,
     hospital_location: str = "",
     appointment_id: int,
+    appointment_public_id: Optional[str] = None,
 ) -> bool:
     maps_url = None
     loc = hospital_location or hospital_name
@@ -88,6 +89,7 @@ async def notify_appointment_booked(
         token_number,
         hospital_name,
         hospital_location,
+        appointment_public_id=appointment_public_id,
     )
     return await send_to_user(
         user_id,

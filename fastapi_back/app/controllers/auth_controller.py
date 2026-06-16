@@ -262,7 +262,9 @@ async def refresh_tokens(refresh_token: str | None, role: str, request=None):
         )
         user_key = str(user_id)
     else:
-        user_id = payload.get("id")
+        from app.utils.ownership import coerce_user_id
+
+        user_id = coerce_user_id(payload.get("id")) or coerce_user_id(payload.get("userId"))
         if user_id is None:
             return {"success": False, "message": "Invalid refresh token"}
         access = token_service.create_access_token(role, user_id=int(user_id))

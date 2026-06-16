@@ -123,7 +123,8 @@ async def appointment_cancel(appointment_id: int, reason: Optional[str] = None):
                         "date": str(appointment.get('slot_date', '')).replace('_', '/'),
                         "time": appointment.get('slot_time', ''),
                         "tokenNumber": appointment.get('token_number', 'N/A'),
-                        "bookingId": f"#APT{appointment_id}",
+                        "publicId": appointment.get("public_id") or f"APT{appointment_id}",
+                        "bookingId": appointment.get("booking_id") or f"#APT{appointment_id}",
                         "reason": reason or "Administrative change",
                     },
                 )
@@ -682,6 +683,27 @@ async def get_all_users():
     try:
         users = await user_model.get_all_users_minimal()
         return {"success": True, "users": [format_user(u) for u in users]}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+async def list_admins():
+    try:
+        rows = await admin_model.get_all_admins()
+        admins = []
+        for row in rows:
+            r = dict(row)
+            admins.append({
+                "id": r.get("id"),
+                "email": r.get("email"),
+                "publicId": r.get("public_id"),
+                "createdAt": (
+                    r["created_at"].isoformat()
+                    if hasattr(r.get("created_at"), "isoformat")
+                    else r.get("created_at")
+                ),
+            })
+        return {"success": True, "admins": admins}
     except Exception as e:
         return {"success": False, "message": str(e)}
 

@@ -25,6 +25,10 @@ async def get_lab_bookings_by_user_id(user_id: int):
     sql = 'SELECT * FROM lab_bookings WHERE user_id = $1 ORDER BY created_at DESC'
     return await db.fetch_all(sql, user_id)
 
+async def get_lab_booking_by_id(booking_id: int):
+    sql = 'SELECT * FROM lab_bookings WHERE id = $1 LIMIT 1'
+    return await db.fetch_one(sql, booking_id)
+
 async def cancel_lab_booking(booking_id: int):
     sql = "UPDATE lab_bookings SET cancelled = true, status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *"
     return await db.fetch_one(sql, booking_id)

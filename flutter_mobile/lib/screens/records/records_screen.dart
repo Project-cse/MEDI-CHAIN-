@@ -337,6 +337,17 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
                         r.title,
                         style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15),
                       ),
+                      if (r.publicId != null && r.publicId!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Record ID · ${r.publicId!.toUpperCase()}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.logoTeal,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 4),
                       Text(
                         fileName,

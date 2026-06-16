@@ -20,6 +20,10 @@ def _normalize_agora_secret(value: str | None) -> str:
     return raw
 
 
+def normalized_app_id() -> str:
+    return _normalize_agora_secret(settings.AGORA_APP_ID)
+
+
 def agora_configured() -> bool:
     app_id = _normalize_agora_secret(settings.AGORA_APP_ID)
     cert = _normalize_agora_secret(settings.AGORA_APP_CERTIFICATE)

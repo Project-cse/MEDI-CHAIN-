@@ -3,6 +3,7 @@
 from app.models import appointment_model, call_session_model, user_model
 from app.services import agora_service, fcm_service
 from app.controllers import consultation_controller
+from app.utils.ownership import load_appointment_for_user
 
 
 def _appointment_paid_for_video(appointment: dict) -> bool:
@@ -38,9 +39,9 @@ def _session_payload(session: dict, appointment: dict | None = None, patient_nam
 
 
 async def request_call(user_id: int, appointment_id: int):
-    appointment = await appointment_model.get_appointment_by_id(int(appointment_id))
-    if not appointment or appointment["user_id"] != user_id:
-        return {"success": False, "message": "Appointment not found"}
+    appointment, err = await load_appointment_for_user(int(appointment_id), user_id)
+    if err:
+        return err
     if appointment.get("cancelled"):
         return {"success": False, "message": "This appointment was cancelled"}
     if not consultation_controller._appointment_is_online_video(appointment):
@@ -96,9 +97,9 @@ async def request_call(user_id: int, appointment_id: int):
 
 
 async def get_call_status_for_user(user_id: int, appointment_id: int):
-    appointment = await appointment_model.get_appointment_by_id(int(appointment_id))
-    if not appointment or appointment["user_id"] != user_id:
-        return {"success": False, "message": "Appointment not found"}
+    appointment, err = await load_appointment_for_user(int(appointment_id), user_id)
+    if err:
+        return err
     session = await call_session_model.get_by_appointment(int(appointment_id))
     if not session:
         return {"success": True, "status": "none", "canJoin": False}
@@ -107,9 +108,9 @@ async def get_call_status_for_user(user_id: int, appointment_id: int):
 
 
 async def cancel_call_request(user_id: int, appointment_id: int):
-    appointment = await appointment_model.get_appointment_by_id(int(appointment_id))
-    if not appointment or appointment["user_id"] != user_id:
-        return {"success": False, "message": "Appointment not found"}
+    appointment, err = await load_appointment_for_user(int(appointment_id), user_id)
+    if err:
+        return err
     session = await call_session_model.get_by_appointment(int(appointment_id))
     if not session:
         return {"success": True, "message": "No active request"}

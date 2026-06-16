@@ -86,6 +86,11 @@ async def delete_lab(lab_id: int):
 # User Booking logic
 async def book_lab_test(user_id: int, data: dict):
     try:
+        from app.utils.ownership import reject_client_user_override
+
+        override_err = reject_client_user_override(data, user_id)
+        if override_err:
+            return override_err
         data['userId'] = user_id
         booking = await lab_booking_model.create_lab_booking(data)
         return {"success": True, "message": "Lab test booked", "booking": booking}
@@ -99,9 +104,14 @@ async def get_user_lab_bookings(user_id: int):
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-async def cancel_lab_test(booking_id: int):
+async def cancel_lab_test(user_id: int, booking_id: int):
     try:
-        await lab_booking_model.cancel_lab_booking(booking_id)
+        from app.utils.ownership import row_owned_by, unauthorized
+
+        booking = await lab_booking_model.get_lab_booking_by_id(int(booking_id))
+        if not row_owned_by(booking, user_id):
+            return unauthorized("Booking not found or unauthorized")
+        await lab_booking_model.cancel_lab_booking(int(booking_id))
         return {"success": True, "message": "Booking cancelled"}
     except Exception as e:
         return {"success": False, "message": str(e)}

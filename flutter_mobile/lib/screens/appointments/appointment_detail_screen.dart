@@ -7,6 +7,7 @@ import '../../constants/app_colors.dart';
 import '../../l10n/l10n_extension.dart';
 import '../../providers/appointment_provider.dart';
 import '../../routes/route_names.dart';
+import '../../services/app_permissions_service.dart';
 import '../../utils/calendar_helper.dart';
 import '../../utils/currency_formatter.dart';
 import '../../utils/date_formatter.dart';
@@ -123,6 +124,8 @@ class AppointmentDetailScreen extends ConsumerWidget {
                   _detailRow(Icons.info_outline, l10n.receiptStatus, statusLabel),
                   if (a.amount != null)
                     _detailRow(Icons.payments_outlined, l10n.doctorFees, CurrencyFormatter.format(a.amount!)),
+                  if (a.publicId != null && a.publicId!.isNotEmpty)
+                    _detailRow(Icons.badge_outlined, 'Appointment ID', a.publicId!.toUpperCase()),
                   if (a.bookingId != null && a.bookingId!.isNotEmpty)
                     _detailRow(Icons.qr_code_2, l10n.receiptBookingId, a.bookingId!.toUpperCase()),
                   if (a.tokenNumber != null && a.tokenNumber! > 0)
@@ -135,7 +138,17 @@ class AppointmentDetailScreen extends ConsumerWidget {
                     const SizedBox(height: 20),
                     AppButton(
                       label: l10n.doctorVideoConsult,
-                      onPressed: () => context.push('/video-waiting/${a.id}'),
+                      onPressed: () async {
+                        try {
+                          await AppPermissionsService.requireVideoConsult();
+                        } on VideoConsultPermissionException catch (e) {
+                          if (!context.mounted) return;
+                          AppSnackbar.show(context, e.toString());
+                          return;
+                        }
+                        if (!context.mounted) return;
+                        context.push('/video-waiting/${a.id}');
+                      },
                     ),
                     const SizedBox(height: 12),
                   ],

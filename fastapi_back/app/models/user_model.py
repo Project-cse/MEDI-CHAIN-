@@ -9,7 +9,7 @@ async def get_all_users():
 
 async def get_all_users_minimal():
     """Fetch only basic user info for management lists to improve performance."""
-    sql = 'SELECT id, name, email, phone, image, address_line1, address_line2, gender, dob, age, blood_group, role, created_at FROM users ORDER BY created_at DESC'
+    sql = 'SELECT id, public_id, name, email, phone, image, address_line1, address_line2, gender, dob, age, blood_group, role, created_at FROM users ORDER BY created_at DESC'
     return await db.query(sql)
 
 async def get_user_by_id(user_id: int):
@@ -21,11 +21,14 @@ async def get_user_by_email(email: str):
     return await db.fetch_row(sql, email)
 
 async def create_user(user_data: Dict[str, Any]):
+    from app.services import public_id_service
+
+    public_id = await public_id_service.new_patient_public_id()
     sql = """
         INSERT INTO users (
             name, email, password, image, phone, address_line1, address_line2,
-            gender, dob, age, blood_group, role
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            gender, dob, age, blood_group, role, public_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *
     """
     values = (
@@ -40,7 +43,8 @@ async def create_user(user_data: Dict[str, Any]):
         user_data.get('dob', 'Not Selected'),
         user_data.get('age'),
         user_data.get('bloodGroup', ''),
-        user_data.get('role', 'patient')
+        user_data.get('role', 'patient'),
+        public_id,
     )
     return await db.fetch_row(sql, *values)
 

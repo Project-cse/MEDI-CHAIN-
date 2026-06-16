@@ -44,6 +44,7 @@ def format_user(user: Any) -> Optional[Dict[str, Any]]:
     return {
         "_id": u.get('id'),
         "id": u.get('id'),
+        "publicId": u.get('public_id'),
         "name": u.get('name'),
         "email": u.get('email'),
         "phone": u.get('phone'),
@@ -112,6 +113,7 @@ def format_doctor(doc: Any) -> Optional[Dict[str, Any]]:
     return {
         "_id": d.get('id'),
         "id": d.get('id'),
+        "publicId": d.get('public_id'),
         "name": d.get('name'),
         "image": d.get('image'),
         "rating": rating,
@@ -225,6 +227,7 @@ def format_appointment_for_frontend(apt: Dict[str, Any], user_data: Optional[Dic
     return {
         '_id': apt['id'],
         'id': apt['id'],
+        'publicId': apt.get('public_id'),
         'docId': apt.get('doctor_id'),
         'userId': apt.get('user_id'),
         'slotDate': apt.get('slot_date'),
@@ -274,6 +277,7 @@ def format_health_record(record: Any) -> Optional[Dict[str, Any]]:
     return {
         "_id": r.get('id'),
         "id": r.get('id'),
+        "publicId": r.get('public_id'),
         "userId": r.get('user_id'),
         "docId": r.get('doctor_id'),
         "appointmentId": r.get('appointment_id'),

@@ -105,6 +105,13 @@ class _PaymentCard extends StatelessWidget {
               ),
             ],
           ),
+          if (item.publicId != null && item.publicId!.trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Payment ID · ${item.publicId!.toUpperCase()}',
+              style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.logoTeal),
+            ),
+          ],
           const SizedBox(height: 6),
           Text(
             '₹${item.displayAmount.toStringAsFixed(item.displayAmount.truncateToDouble() == item.displayAmount ? 0 : 2)}',

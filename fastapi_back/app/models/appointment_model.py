@@ -139,6 +139,10 @@ async def create_appointment(app_data: Dict[str, Any]):
     booking_id = app_data.get('bookingId') or app_data.get('booking_id')
     if not booking_id:
         booking_id = await generate_unique_booking_id()
+
+    from app.services import public_id_service
+
+    public_id = await public_id_service.new_appointment_public_id()
     
     sql = """
         INSERT INTO appointments (
@@ -147,8 +151,8 @@ async def create_appointment(app_data: Dict[str, Any]):
             payment_method, mode, actual_patient_name, actual_patient_age,
             actual_patient_gender, actual_patient_relationship, actual_patient_is_self,
             token_number, status, queue_position, estimated_wait_time, selected_symptoms,
-            booking_id, slot_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+            booking_id, slot_id, public_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
         RETURNING *
     """
     
@@ -179,6 +183,7 @@ async def create_appointment(app_data: Dict[str, Any]):
         list(app_data.get('selectedSymptoms', [])),
         booking_id,
         app_data.get('slotId'),
+        public_id,
     )
     
     return await db.fetch_row(sql, *values)

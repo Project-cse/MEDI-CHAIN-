@@ -20,6 +20,7 @@ import ManageDeans from './pages/Admin/ManageDeans';
 import ManageLabs from './pages/Admin/ManageLabs';
 import ManageBloodBanks from './pages/Admin/ManageBloodBanks';
 import ManageUsers from './pages/Admin/ManageUsers';
+import ManageAdmins from './pages/Admin/ManageAdmins';
 import SystemSettings from './pages/Admin/SystemSettings';
 import AllAppointments from './pages/Admin/AllAppointments';
 import DoctorsList from './pages/Admin/DoctorsList';
@@ -86,6 +87,7 @@ const App = () => {
             <Route path='/manage-labs' element={<ManageLabs />} />
             <Route path='/manage-blood-banks' element={<ManageBloodBanks />} />
             <Route path='/manage-users' element={<ManageUsers />} />
+            <Route path='/manage-admins' element={<ManageAdmins />} />
             <Route path='/system-settings' element={<SystemSettings />} />
             <Route path='/all-appointments' element={<AllAppointments />} />
             <Route path='/doctor-list' element={<DoctorsList />} />

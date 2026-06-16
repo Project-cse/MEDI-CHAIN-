@@ -53,7 +53,9 @@ def create_access_token(
         payload["id"] = user_id
         payload["hospital_id"] = hospital_id
     else:
-        payload["id"] = user_id
+        uid = int(user_id) if user_id is not None else None
+        payload["id"] = uid
+        payload["userId"] = uid  # backward-compatible alias for clients
     return jwt.encode(payload, _access_secret(), algorithm="HS256")
 
 
@@ -81,8 +83,10 @@ def create_refresh_token(
         payload["hospital_id"] = hospital_id
         user_key = str(user_id)
     else:
-        payload["id"] = user_id
-        user_key = str(user_id)
+        uid = int(user_id) if user_id is not None else None
+        payload["id"] = uid
+        payload["userId"] = uid
+        user_key = str(uid)
     raw = jwt.encode(payload, _refresh_secret(), algorithm="HS256")
     return raw, jti, user_key
 

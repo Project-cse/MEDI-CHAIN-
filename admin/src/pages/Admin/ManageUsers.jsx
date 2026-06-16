@@ -3,6 +3,7 @@ import axios from 'axios'
 import { AdminContext } from '../../context/AdminContext'
 import GlassCard from '../../components/ui/GlassCard'
 import { toast } from 'react-toastify'
+import { formatPublicId, publicIdBadgeClass } from '../../utils/publicIdDisplay'
 
 const ManageUsers = () => {
     const { aToken } = useContext(AdminContext)
@@ -47,7 +48,8 @@ const ManageUsers = () => {
 
     const filtered = users.filter(u => 
         (u.name && u.name.toLowerCase().includes(debouncedSearch.toLowerCase())) || 
-        (u.email && u.email.toLowerCase().includes(debouncedSearch.toLowerCase()))
+        (u.email && u.email.toLowerCase().includes(debouncedSearch.toLowerCase())) ||
+        (u.publicId && u.publicId.toLowerCase().includes(debouncedSearch.toLowerCase()))
     )
 
     return (
@@ -121,6 +123,7 @@ const ManageUsers = () => {
                                             <thead className='bg-gray-50/80 text-gray-400 font-bold uppercase text-[10px] tracking-widest'>
                                                 <tr>
                                                     <th className='px-6 py-5'>Full Name & Avatar</th>
+                                                    <th className='px-6 py-5'>Patient ID</th>
                                                     <th className='px-6 py-5'>Contact Credentials</th>
                                                     <th className='px-6 py-5 text-center'>Access Role</th>
                                                     <th className='px-6 py-5 text-right'>Onboarding Date</th>
@@ -137,6 +140,11 @@ const ManageUsers = () => {
                                                                 </div>
                                                                 <span className='font-bold text-gray-900 group-hover:text-indigo-600 transition-colors'>{u.name}</span>
                                                             </div>
+                                                        </td>
+                                                        <td className='px-6 py-4'>
+                                                            <span className={publicIdBadgeClass('indigo')}>
+                                                                {formatPublicId(u, 'PAT', u.id || u._id)}
+                                                            </span>
                                                         </td>
                                                         <td className='px-6 py-4'>
                                                             <div className='flex flex-col'>
@@ -178,6 +186,10 @@ const ManageUsers = () => {
                                          </div>
 
                                          <div className='grid grid-cols-1 gap-4'>
+                                             <div className='flex flex-col gap-1'>
+                                                 <label className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>Patient ID</label>
+                                                 <span className={publicIdBadgeClass('indigo')}>{formatPublicId(u, 'PAT', u.id || u._id)}</span>
+                                             </div>
                                              <div className='flex flex-col gap-1'>
                                                  <label className='text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1'>
                                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>

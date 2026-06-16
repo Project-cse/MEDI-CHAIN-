@@ -7,6 +7,7 @@ from app.config.config import settings
 from app.controllers import user_controller
 from app.models import appointment_model, doctor_model, payment_transaction_model as pt_model
 from app.utils.app_logger import get_logger
+from app.utils.ownership import load_payment_for_user, row_owned_by, unauthorized
 
 log = get_logger(__name__)
 
@@ -227,6 +228,10 @@ async def verify_signature(
 
 
 async def _book_after_payment(user_id: int, pending: dict, razorpay_order_id: str, razorpay_payment_id: str):
+    pending_owner = pending.get("user_id")
+    if pending_owner is not None and not row_owned_by({"user_id": pending_owner}, user_id):
+        return unauthorized("Unauthorized payment")
+
     claim = await pt_model.claim_for_fulfillment(razorpay_order_id)
     kind = claim.get("kind")
 
@@ -327,6 +332,7 @@ async def _book_after_payment(user_id: int, pending: dict, razorpay_order_id: st
             "success": True,
             "appointment_id": str(real_appointment_id),
             "appointmentId": real_appointment_id,
+            "publicId": booked.get("publicId") or booked.get("public_id"),
             "bookingId": booked.get("bookingId"),
             "tokenNumber": booked.get("tokenNumber"),
             "message": "Payment successful",
@@ -465,6 +471,8 @@ async def complete_checkout_payment(
         return verified
 
     user_id = int(row.get("user_id") or 0)
+    if not user_id:
+        return {"success": False, "message": "Checkout session has no user id"}
     existing = await pt_model.get_paid_by_order_id(razorpay_order_id)
     if existing:
         return {
@@ -493,6 +501,11 @@ async def record_failed_payment(
     error: str,
     user_id: int | None = None,
 ):
+    if user_id is not None and order_id:
+        _, err = await load_payment_for_user(order_id, int(user_id))
+        if err:
+            return err
+
     row = await pt_model.mark_failed(
         order_id,
         error or "Payment failed",
@@ -589,7 +602,8 @@ async def get_checkout_html(checkout_token: str) -> str | None:
               '<h1 style="color:#16A34A;margin:0 0 12px;">Payment &amp; booking successful</h1>' +
               '<p style="color:#166534;line-height:1.5;">Close this tab and return to <strong>MediChain+</strong>. Your appointment confirmation should appear automatically.</p>' +
               '<p style="font-size:12px;color:#64748B;margin-top:16px;">Order: ' + response.razorpay_order_id + '</p>' +
-              (data.bookingId ? '<p style="font-size:12px;color:#64748B;">Booking ID: ' + data.bookingId + '</p>' : '') +
+              (data.publicId ? '<p style="font-size:12px;color:#64748B;">Appointment ID: ' + data.publicId + '</p>' : '') +
+              (data.bookingId ? '<p style="font-size:12px;color:#64748B;">Receipt / QR: ' + data.bookingId + '</p>' : '') +
               '</div>';
           }} else {{
             document.getElementById("status-msg").textContent =

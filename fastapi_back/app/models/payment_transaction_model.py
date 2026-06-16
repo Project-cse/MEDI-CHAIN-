@@ -105,6 +105,7 @@ def row_to_pending(row: dict) -> dict:
 def row_to_payment_record(row: dict) -> dict:
     return {
         "id": str(row.get("external_id") or row.get("id")),
+        "publicId": row.get("public_id"),
         "user_id": row.get("user_id"),
         "order_id": row.get("razorpay_order_id"),
         "payment_id": row.get("razorpay_payment_id"),
@@ -137,15 +138,18 @@ async def create_pending(
     appointment_id: Optional[str] = None,
     booking_metadata: Optional[dict] = None,
 ) -> dict:
+    from app.services import public_id_service
+
     meta = booking_metadata or {}
+    public_id = await public_id_service.new_payment_public_id()
     row = await db.fetch_row(
         """
         INSERT INTO payment_transactions (
             razorpay_order_id, checkout_token, user_id, doctor_id, appointment_id,
             amount_paise, currency, doctor_name, customer_name, customer_email,
-            customer_phone, booking_metadata, status
+            customer_phone, booking_metadata, status, public_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, 'pending')
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, 'pending', $13)
         RETURNING *
         """,
         razorpay_order_id,
@@ -160,6 +164,7 @@ async def create_pending(
         customer_email,
         customer_phone,
         json.dumps(meta),
+        public_id,
     )
     return row_to_dict(row)
 
@@ -328,15 +333,18 @@ async def upsert_from_razorpay_notes(
         "slot_type": notes.get("slot_type"),
         "notes": notes.get("booking_notes") or "",
     }
+    from app.services import public_id_service
+
     checkout_token = uuid.uuid4().hex
+    public_id = await public_id_service.new_payment_public_id()
     try:
         row = await db.fetch_row(
             """
             INSERT INTO payment_transactions (
                 razorpay_order_id, checkout_token, user_id, doctor_id,
-                appointment_id, amount_paise, doctor_name, booking_metadata, status
+                appointment_id, amount_paise, doctor_name, booking_metadata, status, public_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'pending')
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'pending', $9)
             ON CONFLICT (razorpay_order_id) DO NOTHING
             RETURNING *
             """,
@@ -348,6 +356,7 @@ async def upsert_from_razorpay_notes(
             amount_paise,
             doctor_name,
             json.dumps(meta),
+            public_id,
         )
         if row:
             return row_to_dict(row)

@@ -78,6 +78,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
         ? (result['queuePosition'] as num).toInt()
         : int.tryParse('${result['queuePosition'] ?? ''}');
     final bookingId = result['bookingId']?.toString() ?? result['booking_id']?.toString();
+    final publicId = result['publicId']?.toString() ?? result['public_id']?.toString();
 
     ref.read(bookingDraftProvider.notifier).state = BookingDraft(
       doctor: doctor,
@@ -87,6 +88,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
       notes: _note.text,
       appointmentId: apptId,
       bookingId: bookingId,
+      publicId: publicId,
       tokenNumber: token,
       queuePosition: queue,
       patient: _patient,

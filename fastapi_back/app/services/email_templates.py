@@ -228,7 +228,8 @@ def appointment_confirmed(details: dict, view_url: str) -> str:
         ("Date & Time", f"{details.get('date', '')}, {details.get('time', '')}"),
         ("Token Number", f"#{details.get('tokenNumber', 'N/A')}"),
         ("Hospital", details.get("hospitalName", "MEDCLUES Partner Hospital")),
-        ("Booking ID", details.get("bookingId", "")),
+        ("Appointment ID", details.get("publicId", "")),
+        ("Receipt / QR Code", details.get("bookingId", "")),
         ("Consultation Fee", f"Rs. {details.get('fee', '')}"),
     ]
     if details.get("hospitalLocation"):
@@ -283,7 +284,8 @@ def appointment_cancelled(
         ("Doctor", details.get("doctorName", "")),
         ("Date & Time", f"{details.get('date', '')}, {details.get('time', '')}"),
         ("Token Number", f"#{details.get('tokenNumber', 'N/A')}"),
-        ("Booking ID", details.get("bookingId", "")),
+        ("Appointment ID", details.get("publicId", details.get("bookingId", ""))),
+        ("Receipt / QR Code", details.get("bookingId", "")),
         ("Reason", reason),
     ]
     content = f"""

@@ -8,6 +8,7 @@ from app.models import health_record_model, appointment_model, user_model
 from app.services import audit_service, email_service
 import asyncio
 from app.utils.formatters import format_health_record
+from app.utils.ownership import load_appointment_for_user, row_owned_by, unauthorized
 
 async def create_health_record(
     user_id: int,
@@ -23,6 +24,11 @@ async def create_health_record(
     files: List[UploadFile]
 ):
     try:
+        if appointment_id:
+            _, err = await load_appointment_for_user(int(appointment_id), user_id)
+            if err:
+                return err
+
         # Set defaults
         if not record_type: record_type = 'General'
         if not date_str: date_str = datetime.now().strftime('%Y-%m-%d')
@@ -153,7 +159,7 @@ def _attachments_list(record: dict) -> list:
 
 async def _get_record_file_meta(user_id: int, record_id: int, file_index: int):
     record = await health_record_model.get_health_record_by_id(record_id)
-    if not record or record['user_id'] != user_id:
+    if not row_owned_by(record, user_id):
         return None, None
     attachments = _attachments_list(record)
     if not attachments or file_index < 0 or file_index >= len(attachments):
@@ -270,8 +276,8 @@ async def get_health_records(user_id: int, params: dict):
 async def delete_health_record(user_id: int, record_id: int):
     try:
         record = await health_record_model.get_health_record_by_id(record_id)
-        if not record or record['user_id'] != user_id:
-            return {"success": False, "message": "Record not found or unauthorized"}
+        if not row_owned_by(record, user_id):
+            return unauthorized("Record not found or unauthorized")
 
         # Delete from Cloudinary
         attachments = record.get('attachments', [])

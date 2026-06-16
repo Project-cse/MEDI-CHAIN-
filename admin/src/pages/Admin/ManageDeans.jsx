@@ -3,6 +3,7 @@ import axios from 'axios'
 import { AdminContext } from '../../context/AdminContext'
 import { toast } from 'react-toastify'
 import GlassCard from '../../components/ui/GlassCard'
+import { formatPublicId, publicIdBadgeClass } from '../../utils/publicIdDisplay'
 
 const ManageDeans = () => {
   const { aToken, hospitals, getAllHospitals } = useContext(AdminContext)
@@ -196,7 +197,7 @@ const ManageDeans = () => {
                     <table className='w-full text-sm'>
                       <thead className='bg-gray-50/80'>
                         <tr>
-                          {['Controller Name', 'Email Access', 'Assigned Hospital', 'Established', 'Actions'].map(h => (
+                          {['Controller Name', 'DEAN ID', 'Email Access', 'Assigned Hospital', 'Established', 'Actions'].map(h => (
                             <th key={h} className='px-6 py-4 text-left text-[11px] font-bold text-gray-400 uppercase tracking-widest'>{h}</th>
                           ))}
                         </tr>
@@ -211,6 +212,11 @@ const ManageDeans = () => {
                                 </div>
                                 <span className='font-bold text-gray-900'>{dean.name}</span>
                               </div>
+                            </td>
+                            <td className='px-6 py-4'>
+                              <span className={publicIdBadgeClass('emerald')}>
+                                {formatPublicId(dean, 'DEA', dean.id)}
+                              </span>
                             </td>
                             <td className='px-6 py-4'>
                               <div className='flex items-center justify-between bg-slate-50/60 border border-slate-100 px-4 py-2 rounded-2xl max-w-[280px] min-w-[240px] group/email shadow-sm hover:shadow transition-all duration-300'>
@@ -288,6 +294,10 @@ const ManageDeans = () => {
                         </div>
 
                         <div className='grid grid-cols-1 gap-3'>
+                            <div className='flex items-center gap-2'>
+                                <span className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>DEAN ID</span>
+                                <span className={publicIdBadgeClass('emerald')}>{formatPublicId(dean, 'DEA', dean.id)}</span>
+                            </div>
                             <div className='p-3 bg-emerald-50/50 rounded-xl border border-emerald-100'>
                                 <p className='text-[10px] uppercase tracking-widest font-bold text-emerald-700 mb-1'>Assigned Hospital</p>
                                 <p className='text-sm font-bold text-gray-800 flex items-center gap-2'>

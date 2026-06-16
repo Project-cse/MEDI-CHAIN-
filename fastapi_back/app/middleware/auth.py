@@ -4,6 +4,7 @@ from jose import jwt, JWTError
 from app.config.config import settings
 from app.services.token_service import verify_access_payload
 from app.utils.app_logger import get_logger
+from app.utils.ownership import coerce_user_id
 from datetime import datetime
 
 security = fastapi.security.HTTPBearer(auto_error=False)
@@ -31,16 +32,17 @@ async def auth_user(request: Request, token: fastapi.security.HTTPAuthorizationC
         payload = jwt.decode(token_str, secret, algorithms=["HS256"])
         verify_access_payload(payload)
 
-        user_id = payload.get("id")
+        role = (payload.get("role") or "patient").strip().lower()
+        if role != "patient":
+            logger.warning("Auth failed: patient route used with role=%s", role)
+            raise HTTPException(status_code=403, detail="Patient access required")
+
+        user_id = coerce_user_id(payload.get("id")) or coerce_user_id(payload.get("userId"))
         if user_id is None:
-            # Try 'userId' just in case
-            user_id = payload.get("userId")
-            
-        if user_id is None:
-            logger.warning("Auth failed: token missing user id claim")
+            logger.warning("Auth failed: token missing numeric user id claim")
             raise HTTPException(status_code=401, detail="Invalid token")
-            
-        return user_id
+
+        return int(user_id)
     except JWTError as e:
         logger.warning("Auth JWT error: %s", str(e))
         raise HTTPException(status_code=401, detail="Not authorized, login again")
@@ -105,10 +107,13 @@ async def auth_doctor(request: Request, token: fastapi.security.HTTPAuthorizatio
         secret = settings.JWT_SECRET.strip('"').strip("'")
         payload = jwt.decode(token_str, secret, algorithms=["HS256"])
         verify_access_payload(payload)
-        doc_id = payload.get("id")
+        role = (payload.get("role") or "").strip().lower()
+        if role and role != "doctor":
+            raise HTTPException(status_code=403, detail="Doctor access required")
+        doc_id = coerce_user_id(payload.get("id")) or coerce_user_id(payload.get("userId"))
         if doc_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return doc_id
+        return int(doc_id)
     except JWTError:
         raise HTTPException(status_code=401, detail="Not authorized, login again")
 

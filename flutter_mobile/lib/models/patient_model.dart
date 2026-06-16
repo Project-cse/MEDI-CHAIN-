@@ -1,5 +1,6 @@
 class PatientModel {
   final String id;
+  final String? publicId;
   final String name;
   final String email;
   final String? phone;
@@ -12,6 +13,7 @@ class PatientModel {
 
   const PatientModel({
     required this.id,
+    this.publicId,
     required this.name,
     required this.email,
     this.phone,
@@ -25,7 +27,8 @@ class PatientModel {
 
   factory PatientModel.fromJson(Map<String, dynamic> json) {
     return PatientModel(
-      id: '${json['id'] ?? ''}',
+      id: '${json['id'] ?? json['_id'] ?? ''}',
+      publicId: json['publicId']?.toString() ?? json['public_id']?.toString(),
       name: '${json['name'] ?? ''}',
       email: '${json['email'] ?? ''}',
       phone: json['phone']?.toString(),
@@ -74,6 +77,7 @@ class PatientModel {
       };
 
   PatientModel copyWith({
+    String? publicId,
     String? name,
     String? phone,
     String? dob,
@@ -85,6 +89,7 @@ class PatientModel {
   }) {
     return PatientModel(
       id: id,
+      publicId: publicId,
       name: name ?? this.name,
       email: email,
       phone: phone ?? this.phone,

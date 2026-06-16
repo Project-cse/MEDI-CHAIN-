@@ -6,6 +6,7 @@ import axios from 'axios'
 import { assets } from '../../assets/assets'
 import GlassCard from '../../components/ui/GlassCard'
 import { useSearchParams } from 'react-router-dom'
+import { formatPublicId, publicIdBadgeClass } from '../../utils/publicIdDisplay'
 
 const DoctorsList = () => {
 
@@ -267,6 +268,9 @@ const DoctorsList = () => {
                 </div>
                 <div className='p-4'>
                   <p className='text-[#262626] text-base font-semibold truncate'>{item.name}</p>
+                  <span className={`inline-block mb-1 ${publicIdBadgeClass('violet')}`}>
+                    {formatPublicId(item, 'DOC', item._id)}
+                  </span>
                   <p className='text-[#5C5C5C] text-[11px] mb-1 truncate'>{item.speciality}</p>
                   
                   {item.hospital_name && (

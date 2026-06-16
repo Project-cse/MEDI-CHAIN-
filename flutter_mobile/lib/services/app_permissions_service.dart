@@ -77,9 +77,19 @@ class AppPermissionsService {
     return results.values.every((s) => s.isGranted || s.isLimited);
   }
 
+  /// Android 12+ Bluetooth — Agora audio routing can crash without this.
+  static Future<void> ensureAgoraAndroidAudio() async {
+    if (!isMobile || !Platform.isAndroid) return;
+    try {
+      await Permission.bluetoothConnect.request();
+    } catch (_) {}
+  }
+
   /// Throws if camera or microphone is not granted (blocks native Agora crash).
   static Future<({bool camera, bool microphone})> requireVideoConsult() async {
     if (!isMobile) return (camera: true, microphone: true);
+
+    await ensureAgoraAndroidAudio();
 
     var cam = await Permission.camera.status;
     var mic = await Permission.microphone.status;

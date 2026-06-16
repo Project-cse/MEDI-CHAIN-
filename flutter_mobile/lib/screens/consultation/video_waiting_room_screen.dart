@@ -48,6 +48,26 @@ class _VideoWaitingRoomScreenState extends ConsumerState<VideoWaitingRoomScreen>
   }
 
   Future<void> _start() async {
+    if (!kIsWeb) {
+      try {
+        await AppPermissionsService.requireVideoConsult();
+      } on VideoConsultPermissionException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _error = e.toString();
+          _requesting = false;
+        });
+        return;
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _error = e.toString();
+          _requesting = false;
+        });
+        return;
+      }
+    }
+
     try {
       final session = await ref.read(consultationServiceProvider).requestCall(widget.appointmentId);
       if (!mounted) return;

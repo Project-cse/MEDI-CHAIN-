@@ -7,18 +7,21 @@ async def get_health_records_by_user_id(user_id: int):
     return await db.fetch_all(sql, user_id)
 
 async def create_health_record(data: dict):
-    # Map Node.js field names (camelCase) to Python/DB snake_case where necessary
-    # Or keep consistency with how the frontend sends data
+    from app.services import public_id_service
+
     files_json = json.dumps(data.get('files', []))
     tags_json = json.dumps(data.get('tags', []))
+    record_date = data.get('date', datetime.now())
+    record_year = record_date.year if hasattr(record_date, 'year') else None
+    public_id = await public_id_service.new_health_record_public_id(record_year)
 
     sql = """
         INSERT INTO health_records (
             user_id, doctor_id, appointment_id, diagnosis, prescription, notes, 
             attachments, record_type, title, description, doctor_name, record_date,
-            tags, is_important, uploaded_before_appointment
+            tags, is_important, uploaded_before_appointment, public_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING *
     """
     
@@ -35,10 +38,11 @@ async def create_health_record(data: dict):
         data.get('title', ''),
         data.get('description', ''), 
         data.get('doctorName', ''), 
-        data.get('date', datetime.now()),
+        record_date,
         tags_json, 
         data.get('isImportant', False), 
-        data.get('uploadedBeforeAppointment', False)
+        data.get('uploadedBeforeAppointment', False),
+        public_id,
     ]
     
     return await db.fetch_one(sql, *values)

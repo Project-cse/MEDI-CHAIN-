@@ -1,5 +1,6 @@
 class UserModel {
   final String id;
+  final String? publicId;
   final String name;
   final String email;
   final String? phone;
@@ -8,6 +9,7 @@ class UserModel {
 
   const UserModel({
     required this.id,
+    this.publicId,
     required this.name,
     required this.email,
     this.phone,
@@ -18,6 +20,7 @@ class UserModel {
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: '${json['id'] ?? json['_id'] ?? ''}',
+      publicId: json['publicId']?.toString() ?? json['public_id']?.toString(),
       name: '${json['name'] ?? ''}',
       email: '${json['email'] ?? ''}',
       phone: json['phone']?.toString(),

@@ -1,6 +1,7 @@
 class PaymentHistoryItem {
   const PaymentHistoryItem({
     required this.id,
+    this.publicId,
     required this.status,
     this.orderId,
     this.paymentId,
@@ -13,6 +14,7 @@ class PaymentHistoryItem {
   });
 
   final String id;
+  final String? publicId;
   final String? orderId;
   final String? paymentId;
   final String? appointmentId;
@@ -26,6 +28,7 @@ class PaymentHistoryItem {
   factory PaymentHistoryItem.fromJson(Map<String, dynamic> json) {
     return PaymentHistoryItem(
       id: '${json['id'] ?? json['_id'] ?? ''}',
+      publicId: (json['publicId'] ?? json['public_id'])?.toString(),
       orderId: json['order_id']?.toString(),
       paymentId: json['payment_id']?.toString(),
       appointmentId: json['appointment_id']?.toString(),

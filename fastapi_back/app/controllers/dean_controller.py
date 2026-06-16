@@ -432,7 +432,12 @@ async def admin_create_dean(data: dict):
 async def admin_list_deans():
     try:
         deans = await dean_model.get_all_deans()
-        return {"success": True, "deans": [dict(d) for d in deans]}
+        payload = []
+        for d in deans:
+            row = dict(d)
+            row["publicId"] = row.get("public_id")
+            payload.append(row)
+        return {"success": True, "deans": payload}
     except Exception as e:
         return {"success": False, "message": str(e)}
 

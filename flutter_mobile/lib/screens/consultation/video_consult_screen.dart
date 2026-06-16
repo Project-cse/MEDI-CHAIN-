@@ -38,6 +38,7 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
   bool _muted = false;
   bool _videoOff = false;
   bool _cameraBlocked = false;
+  bool _localPreviewReady = false;
   bool _speakerOn = true;
   bool _micGranted = true;
   int _callSeconds = 0;
@@ -221,8 +222,19 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
           },
         ),
       );
+      await engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
       await engine.enableVideo();
       var publishCamera = !_cameraBlocked;
+      if (!kIsWeb && publishCamera) {
+        try {
+          await engine.startPreview();
+          _localPreviewReady = true;
+        } catch (_) {
+          publishCamera = false;
+          _cameraBlocked = true;
+          _localPreviewReady = false;
+        }
+      }
       await engine
           .joinChannel(
             token: creds.token,
@@ -245,14 +257,6 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
         try {
           await engine.setEnableSpeakerphone(_speakerOn);
         } catch (_) {}
-      }
-      if (!kIsWeb && publishCamera) {
-        try {
-          await engine.startPreview();
-        } catch (_) {
-          publishCamera = false;
-          _cameraBlocked = true;
-        }
       }
       if (!publishCamera) {
         _videoOff = true;
@@ -490,7 +494,7 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
               ),
             ),
           ),
-        if (_joined && !_videoOff && _creds != null)
+        if (_joined && !_videoOff && _localPreviewReady)
           Align(
             alignment: Alignment.topRight,
             child: Padding(
@@ -506,7 +510,7 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
                     child: AgoraVideoView(
                       controller: VideoViewController(
                         rtcEngine: engine,
-                        canvas: VideoCanvas(uid: _creds!.uid),
+                        canvas: const VideoCanvas(uid: 0),
                       ),
                     ),
                   ),

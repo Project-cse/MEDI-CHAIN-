@@ -47,10 +47,13 @@ async def get_dean_by_id(dean_id: int):
 
 
 async def create_dean(data: dict):
+    from app.services import public_id_service
+
+    public_id = await public_id_service.new_dean_public_id()
     sql = """
-        INSERT INTO deans (name, email, password, hospital_id)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, name, email, hospital_id, created_at, updated_at
+        INSERT INTO deans (name, email, password, hospital_id, public_id)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, name, email, hospital_id, public_id, created_at, updated_at
     """
     return await db.fetch_row(
         sql,
@@ -58,6 +61,7 @@ async def create_dean(data: dict):
         data["email"],
         data["password"],
         data["hospital_id"],
+        public_id,
     )
 
 
@@ -86,7 +90,7 @@ async def delete_dean(dean_id: int):
 
 async def get_all_deans():
     sql = """
-        SELECT d.id, d.name, d.email, d.hospital_id, d.created_at,
+        SELECT d.id, d.public_id, d.name, d.email, d.hospital_id, d.created_at,
                h.name AS hospital_name
         FROM deans d
         LEFT JOIN hospital_tieups h ON d.hospital_id = h.id

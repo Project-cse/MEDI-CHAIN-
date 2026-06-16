@@ -20,6 +20,7 @@ class AppointmentModel {
   final int? tokenNumber;
   final int? queuePosition;
   final String? bookingId;
+  final String? publicId;
 
   const AppointmentModel({
     required this.id,
@@ -43,6 +44,7 @@ class AppointmentModel {
     this.tokenNumber,
     this.queuePosition,
     this.bookingId,
+    this.publicId,
   });
 
   factory AppointmentModel.fromJson(Map<String, dynamic> json) {
@@ -89,6 +91,7 @@ class AppointmentModel {
           ? ((json['queuePosition'] ?? json['queue_position']) as num).toInt()
           : int.tryParse('${json['queuePosition'] ?? json['queue_position'] ?? ''}'),
       bookingId: (json['bookingId'] ?? json['booking_id'])?.toString(),
+      publicId: (json['publicId'] ?? json['public_id'])?.toString(),
     );
   }
 

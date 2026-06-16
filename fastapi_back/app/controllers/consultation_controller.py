@@ -144,7 +144,7 @@ def _agora_join_payload(channel: str, uid: int, consultation: dict):
         )
     return {
         'success': True,
-        'appId': settings.AGORA_APP_ID,
+        'appId': agora_service.normalized_app_id(),
         'channel': channel,
         'token': token,
         'uid': uid,
@@ -273,6 +273,12 @@ async def get_video_consult_doctors(lat: float = None, lon: float = None, distan
 
 async def create_consultation(user_id: int, req_body: dict):
     try:
+        from app.utils.ownership import reject_client_user_override
+
+        override_err = reject_client_user_override(req_body, user_id)
+        if override_err:
+            return override_err
+
         doctor_id = req_body.get('doctorId')
         
         doctor = await doctor_model.get_doctor_by_id(doctor_id)

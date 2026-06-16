@@ -138,6 +138,11 @@ async def update_dean(dean_id: int, req: Request, admin_email: str = Depends(aut
 async def get_all_users(admin_email: str = Depends(auth_admin)):
     return await admin_controller.get_all_users()
 
+
+@router.get("/admins")
+async def list_admins(admin_email: str = Depends(auth_admin)):
+    return await admin_controller.list_admins()
+
 @router.get("/revenue-analytics")
 async def get_revenue_analytics(admin_email: str = Depends(auth_admin)):
     return await admin_controller.get_revenue_analytics()
