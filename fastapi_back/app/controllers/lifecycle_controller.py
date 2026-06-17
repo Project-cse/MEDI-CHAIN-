@@ -13,6 +13,9 @@ from app.services import (
     trust_score_service,
 )
 from app.services.appointment_lifecycle_service import AppointmentPolicyError
+from app.utils.app_logger import get_logger
+
+log = get_logger(__name__)
 
 
 def _clean_text(value: Any) -> Optional[str]:
@@ -20,6 +23,92 @@ def _clean_text(value: Any) -> Optional[str]:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _parse_followup_date(value: Any) -> Optional[date]:
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value
+    text = _clean_text(value)
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return None
+
+
+def _consultation_fields_from_body(body: dict[str, Any]) -> tuple[
+    Optional[str], Optional[str], Optional[str], Optional[str], Optional[date]
+]:
+    return (
+        _clean_text(body.get("diagnosis")),
+        _clean_text(body.get("advice")),
+        _clean_text(body.get("notes")),
+        _clean_text(body.get("prescription")),
+        _parse_followup_date(body.get("followupDate") or body.get("followup_date")),
+    )
+
+
+async def _ensure_consultation_for_appointment(appointment: dict[str, Any]):
+    from app.models import consultation_model
+    from app.controllers import consultation_controller
+
+    consultation = await consultation_model.get_consultation_by_appointment_id(
+        int(appointment["id"])
+    )
+    if not consultation:
+        consultation, _ = await consultation_controller._ensure_consultation_record(
+            appointment
+        )
+    return consultation
+
+
+async def save_consultation_draft(
+    doctor_id: int,
+    appointment_id: int,
+    body: dict[str, Any],
+) -> dict:
+    """Persist prescription/clinical notes without ending the call or completing the visit."""
+    appointment = await appointment_model.get_appointment_by_id(int(appointment_id))
+    if not appointment or appointment["doctor_id"] != doctor_id:
+        return {"success": False, "message": "Unauthorized or not found"}
+
+    import json
+
+    consultation = await _ensure_consultation_for_appointment(appointment)
+    if not consultation:
+        return {"success": False, "message": "Consultation not found"}
+
+    diagnosis, advice, notes, prescription, followup = _consultation_fields_from_body(body)
+
+    await db.execute(
+        """
+        UPDATE consultations SET
+            diagnosis = COALESCE($2, diagnosis),
+            advice = COALESCE($3, advice),
+            notes = COALESCE($4, notes),
+            prescription = COALESCE($5, prescription),
+            followup_date = COALESCE($6::date, followup_date),
+            attachments = COALESCE($7::jsonb, attachments),
+            updated_at = NOW()
+        WHERE id = $1
+        """,
+        int(consultation["id"]),
+        diagnosis,
+        advice,
+        notes,
+        prescription,
+        followup,
+        json.dumps(body.get("attachments") or []),
+    )
+
+    return {
+        "success": True,
+        "message": "Prescription saved for patient",
+        "consultationId": int(consultation["id"]),
+    }
 
 
 async def get_lifecycle(appointment_id: int, user_id: Optional[int] = None) -> dict:
@@ -191,25 +280,13 @@ async def complete_consultation(
     if not appointment or appointment["doctor_id"] != doctor_id:
         return {"success": False, "message": "Unauthorized or not found"}
 
-    from app.models import consultation_model, health_record_model
-    from app.controllers import consultation_controller
+    from app.models import health_record_model
     import json
 
-    consultation = await consultation_model.get_consultation_by_appointment_id(
-        int(appointment_id)
-    )
-    if not consultation:
-        consultation, _ = await consultation_controller._ensure_consultation_record(
-            appointment
-        )
+    consultation = await _ensure_consultation_for_appointment(appointment)
 
     if consultation:
-        diagnosis = _clean_text(body.get("diagnosis"))
-        advice = _clean_text(body.get("advice"))
-        notes = _clean_text(body.get("notes"))
-        prescription = _clean_text(body.get("prescription"))
-        followup = body.get("followupDate") or body.get("followup_date")
-        followup = _clean_text(followup) if followup else None
+        diagnosis, advice, notes, prescription, followup = _consultation_fields_from_body(body)
 
         await db.execute(
             """
@@ -258,10 +335,12 @@ async def complete_consultation(
             )
         except Exception:
             pass
-        if isinstance(exc, AppointmentPolicyError):
-            pass
-        else:
-            raise
+        if not isinstance(exc, AppointmentPolicyError):
+            log.warning(
+                "Lifecycle transition after prescription save (appointment %s): %s",
+                appointment_id,
+                exc,
+            )
     try:
         from app.services import doctor_slot_service
         await doctor_slot_service.complete_slot_for_appointment(appointment)
@@ -279,13 +358,22 @@ async def complete_consultation(
     except Exception:
         pass
 
-    await trust_score_service.apply_event(
-        int(appointment["user_id"]), "COMPLETED_VISIT", actor_id=doctor_id, actor_role="doctor"
-    )
+    try:
+        await trust_score_service.apply_event(
+            int(appointment["user_id"]),
+            "COMPLETED_VISIT",
+            actor_id=doctor_id,
+            actor_role="doctor",
+        )
+    except Exception as exc:
+        log.warning("Trust score update skipped for appointment %s: %s", appointment_id, exc)
 
-    updated_apt = await appointment_model.get_appointment_by_id(int(appointment_id))
-    if updated_apt:
-        await followup_service.open_followup_window(updated_apt)
+    try:
+        updated_apt = await appointment_model.get_appointment_by_id(int(appointment_id))
+        if updated_apt:
+            await followup_service.open_followup_window(updated_apt)
+    except Exception as exc:
+        log.warning("Follow-up window skipped for appointment %s: %s", appointment_id, exc)
 
     try:
         doc = await doctor_model.get_doctor_by_id(doctor_id)

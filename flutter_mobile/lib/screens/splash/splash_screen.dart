@@ -14,7 +14,7 @@ import '../../widgets/brand/medclues_logo_image.dart';
 import '../../features/emergency/widgets/emergency_help_button.dart';
 import '../../widgets/splash/fullscreen_splash_video.dart';
 
-/// Full-screen splash animation (1080×1920 portrait, cover) → login handoff.
+/// Full-screen splash animation → login handoff.
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 

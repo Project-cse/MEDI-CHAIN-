@@ -23,6 +23,35 @@ def is_razorpay_test_mode() -> bool:
     return key.startswith("rzp_test_")
 
 
+def _normalize_symptoms_list(value) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        except Exception:
+            pass
+        return [text]
+    return []
+
+
+def _booking_symptoms(pending: dict) -> list[str]:
+    symptoms = _normalize_symptoms_list(pending.get("symptoms"))
+    notes = (pending.get("notes") or "").strip()
+    if notes:
+        note_entry = f"Note: {notes}"
+        if note_entry not in symptoms and notes not in symptoms:
+            symptoms.append(note_entry)
+    return symptoms
+
+
 def get_razorpay_key():
     if not settings.RAZORPAY_KEY_ID:
         return {"success": False, "message": "Razorpay not configured"}
@@ -121,6 +150,8 @@ async def create_appointment_order(user_id: int, body: dict):
         user = await user_model.get_user_by_id(user_id) or {}
 
         receipt = f"mc_{user_id}_{uuid.uuid4().hex[:10]}"
+        symptoms = _normalize_symptoms_list(body.get("symptoms"))
+        booking_notes = str(body.get("notes") or "")[:200]
         order = razorpay_client.order.create(
             data={
                 "amount": amount_paise,
@@ -136,7 +167,8 @@ async def create_appointment_order(user_id: int, body: dict):
                     "slot_type": str(body.get("slot_type") or body.get("slotType") or ""),
                     "mode": str(body.get("mode") or "online"),
                     "visit_type": str(body.get("visit_type") or "online"),
-                    "booking_notes": str(body.get("notes") or "")[:200],
+                    "booking_notes": booking_notes,
+                    "symptoms": json.dumps(symptoms)[:500],
                 },
             }
         )
@@ -165,6 +197,7 @@ async def create_appointment_order(user_id: int, body: dict):
                 "slot_id": body.get("slot_id") or body.get("slotId"),
                 "slot_type": body.get("slot_type") or body.get("slotType"),
                 "notes": body.get("notes") or "",
+                "symptoms": symptoms,
             },
         )
 
@@ -277,7 +310,7 @@ async def _book_after_payment(user_id: int, pending: dict, razorpay_order_id: st
         "docId": pending["doctor_id"],
         "slotDate": pending["appointment_date"],
         "slotTime": pending["appointment_time"],
-        "symptoms": [pending.get("notes")] if pending.get("notes") else [],
+        "symptoms": _booking_symptoms(pending),
         "paymentMethod": "razorpay",
         "mode": mode,
         "visitType": "Online" if visit == "online" else "In-clinic",

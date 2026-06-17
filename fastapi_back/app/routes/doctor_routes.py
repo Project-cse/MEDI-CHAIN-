@@ -131,6 +131,16 @@ async def doctor_video_call_status(appointmentId: int, doc_id: int = Depends(aut
 async def doctor_sync_call_timer(appointmentId: int, doc_id: int = Depends(auth_doctor)):
     return await consultation_controller.sync_call_timer_for_doctor(doc_id, appointmentId)
 
+@router.post("/appointments/{appointmentId}/save-consultation")
+async def doctor_save_consultation(appointmentId: int, req: Request, doc_id: int = Depends(auth_doctor)):
+    body = {}
+    if req.headers.get('content-type', '').startswith('application/json'):
+        try:
+            body = await req.json()
+        except Exception:
+            body = {}
+    return await consultation_controller.save_consultation_for_doctor(doc_id, appointmentId, body)
+
 @router.post("/appointments/{appointmentId}/end-video-call")
 async def doctor_end_video_call(appointmentId: int, req: Request, doc_id: int = Depends(auth_doctor)):
     body = {}

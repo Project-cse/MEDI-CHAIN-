@@ -96,6 +96,7 @@ def row_to_pending(row: dict) -> dict:
         "slot_id": slot_id,
         "slot_type": meta.get("slot_type"),
         "notes": meta.get("notes") or meta.get("booking_notes") or "",
+        "symptoms": meta.get("symptoms") or [],
         "amount_paise": int(row.get("amount_paise") or 0),
         "appointment_id": row.get("appointment_id") or f"pending_{row.get('razorpay_order_id')}",
         "simple": bool(meta.get("simple")),
@@ -323,6 +324,14 @@ async def upsert_from_razorpay_notes(
     if not user_id or not doctor_id:
         return None
     slot_id = notes.get("slot_id") or ""
+    symptoms_raw = notes.get("symptoms") or "[]"
+    symptoms: list = []
+    try:
+        parsed = json.loads(symptoms_raw) if isinstance(symptoms_raw, str) else symptoms_raw
+        if isinstance(parsed, list):
+            symptoms = parsed
+    except Exception:
+        symptoms = []
     meta = {
         "doctor_id": str(doctor_id),
         "appointment_date": notes.get("appointment_date") or "",
@@ -332,6 +341,7 @@ async def upsert_from_razorpay_notes(
         "slot_id": int(slot_id) if str(slot_id).isdigit() else slot_id or None,
         "slot_type": notes.get("slot_type"),
         "notes": notes.get("booking_notes") or "",
+        "symptoms": symptoms,
     }
     from app.services import public_id_service
 

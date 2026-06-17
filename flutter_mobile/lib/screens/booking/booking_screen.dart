@@ -226,6 +226,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
           appointmentDate: selectedDate,
           appointmentTime: slotTime,
           notes: notes,
+          symptoms: symptoms,
           slotId: slotId,
           slotType: slotType,
           mode: isVideo ? 'online' : 'offline',

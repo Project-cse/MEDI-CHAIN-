@@ -197,6 +197,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/appointment-detail/:id',
+        redirect: (_, state) => '/appointments/${state.pathParameters['id']}',
+      ),
+      GoRoute(
         path: '/appointments/:id',
         builder: (_, state) => AppointmentDetailScreen(appointmentId: state.pathParameters['id']!),
       ),

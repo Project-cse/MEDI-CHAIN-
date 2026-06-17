@@ -1,9 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../brand/medclues_palette.dart';
 
-/// Splash fills the screen — scales video so its own #f5f5f5 canvas reaches all edges.
+/// Opening intro video — scales to fill the full screen (BoxFit.cover).
 class FullscreenSplashVideo extends StatelessWidget {
   const FullscreenSplashVideo({
     super.key,
@@ -15,10 +17,6 @@ class FullscreenSplashVideo extends StatelessWidget {
   final VideoPlayerController controller;
   final double fallbackWidth;
   final double fallbackHeight;
-
-  /// Contain keeps the full MEDCLUES wordmark visible — cover crops M/S on tall phones.
-  /// Letterbox bars use splashCanvas (#f5f5f5), matching the video background.
-  static const BoxFit _fit = BoxFit.contain;
 
   @override
   Widget build(BuildContext context) {
@@ -38,18 +36,29 @@ class FullscreenSplashVideo extends StatelessWidget {
 
         return ColoredBox(
           color: MedcluesPalette.splashCanvas,
-          child: SizedBox.expand(
-            child: ClipRect(
-              child: FittedBox(
-                fit: _fit,
-                alignment: Alignment.center,
-                child: SizedBox(
-                  width: w,
-                  height: h,
-                  child: VideoPlayer(controller),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final maxW = constraints.maxWidth;
+              final maxH = constraints.maxHeight;
+              if (maxW <= 0 || maxH <= 0) {
+                return const SizedBox.shrink();
+              }
+
+              // Cover: fill entire screen; center crop if aspect ratios differ.
+              final scale = math.max(maxW / w, maxH / h);
+              final fittedW = w * scale;
+              final fittedH = h * scale;
+
+              return ClipRect(
+                child: Center(
+                  child: SizedBox(
+                    width: fittedW,
+                    height: fittedH,
+                    child: VideoPlayer(controller),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         );
       },

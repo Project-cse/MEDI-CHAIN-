@@ -78,6 +78,10 @@ const DoctorVideoConsultRoom = ({
   const [consultNotes, setConsultNotes] = useState('')
   const [advice, setAdvice] = useState('')
   const [followupDate, setFollowupDate] = useState('')
+  const [saveState, setSaveState] = useState('idle') // idle | dirty | saving | saved
+  const [lastSavedAt, setLastSavedAt] = useState(null)
+  const [savingPrescription, setSavingPrescription] = useState(false)
+  const lastSavedPayloadRef = useRef(null)
   const [cameraHint, setCameraHint] = useState(
     !publishCameraInitial
       ? 'Receive-only: your camera is off so the patient can use the webcam on this device.'
@@ -98,7 +102,17 @@ const DoctorVideoConsultRoom = ({
   const patientImage = getPatientImage(appointment)
   const patientGender =
     appointment?.actualPatient?.gender || appointment?.userData?.gender || '—'
-  const symptoms = appointment?.selectedSymptoms || []
+  const rawSymptoms = appointment?.selectedSymptoms || []
+  const symptoms = rawSymptoms.filter((s) => !String(s).startsWith('Note:'))
+  const patientBookingNotes = [
+    ...rawSymptoms
+      .filter((s) => String(s).startsWith('Note:'))
+      .map((s) => String(s).replace(/^Note:\s*/, '')),
+    // Legacy Razorpay bookings stored free-text notes as the only "symptom".
+    ...(symptoms.length === 0 && rawSymptoms.length === 1 && !String(rawSymptoms[0]).startsWith('Note:')
+      ? [String(rawSymptoms[0])]
+      : []),
+  ]
   const tokenNo = appointment?.tokenNumber
   const bookingId = appointment?.bookingId || `APP-${appointmentId}`
   const apptLabel = bookingId.startsWith('APP') ? bookingId : `APP-${bookingId}`
@@ -162,30 +176,92 @@ const DoctorVideoConsultRoom = ({
     } catch (_) {}
   }
 
-  const persistConsultationToServer = async () => {
+  const buildConsultationPayload = () => ({
+    consultationId,
+    prescription,
+    notes: consultNotes,
+    diagnosis,
+    advice,
+    followupDate: followupDate || undefined,
+  })
+
+  const payloadSignature = () => JSON.stringify(buildConsultationPayload())
+
+  useEffect(() => {
+    if (saveState === 'saving') return
+    const sig = payloadSignature()
+    const hasDraftContent = Boolean(
+      prescription.trim() || diagnosis.trim() || consultNotes.trim() || advice.trim() || followupDate
+    )
+    if (lastSavedPayloadRef.current === null) {
+      if (hasDraftContent) setSaveState('dirty')
+      return
+    }
+    if (sig !== lastSavedPayloadRef.current) setSaveState('dirty')
+  }, [prescription, diagnosis, consultNotes, advice, followupDate, consultationId, saveState])
+
+  const saveConsultationDraft = async ({ silent = false } = {}) => {
+    setSavingPrescription(true)
+    setSaveState('saving')
     try {
       const { data } = await axios.post(
-        `${backendUrl}/api/doctor/appointments/${appointmentId}/end-video-call`,
-        {
-          consultationId,
-          prescription,
-          notes: consultNotes,
-          diagnosis,
-          advice,
-          followupDate: followupDate || undefined,
-        },
+        `${backendUrl}/api/doctor/appointments/${appointmentId}/save-consultation`,
+        buildConsultationPayload(),
         { headers: { dToken: authToken } }
       )
       if (data?.success) {
-        toast.success(data.message || 'Prescription saved for patient')
+        lastSavedPayloadRef.current = payloadSignature()
+        setSaveState('saved')
+        setLastSavedAt(new Date())
+        if (!silent) toast.success(data.message || 'Prescription saved for patient')
         return true
       }
-      toast.error(data?.message || 'Could not save prescription for patient')
+      setSaveState('dirty')
+      if (!silent) toast.error(data?.message || 'Could not save prescription')
       return false
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Could not save prescription for patient')
+      setSaveState('dirty')
+      if (!silent) toast.error(err?.response?.data?.message || 'Could not save prescription')
+      return false
+    } finally {
+      setSavingPrescription(false)
+    }
+  }
+
+  const finalizeConsultationOnServer = async () => {
+    try {
+      const { data } = await axios.post(
+        `${backendUrl}/api/doctor/appointments/${appointmentId}/end-video-call`,
+        buildConsultationPayload(),
+        { headers: { dToken: authToken } }
+      )
+      if (data?.success) {
+        lastSavedPayloadRef.current = payloadSignature()
+        setSaveState('saved')
+        return true
+      }
+      toast.error(data?.message || 'Call ended but consultation could not be finalized')
+      return false
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Call ended but consultation could not be finalized')
       return false
     }
+  }
+
+  const persistConsultationToServer = async () => {
+    const hasUnsavedChanges = lastSavedPayloadRef.current !== payloadSignature()
+    if (hasUnsavedChanges) {
+      const saved = await saveConsultationDraft({ silent: true })
+      if (!saved) {
+        toast.error('Could not save prescription before ending call')
+        return false
+      }
+    }
+    const finalized = await finalizeConsultationOnServer()
+    if (finalized) {
+      toast.success('Consultation ended')
+    }
+    return finalized
   }
 
   const handleCallEnded = async (message, { notifyServer = true } = {}) => {
@@ -616,6 +692,30 @@ const DoctorVideoConsultRoom = ({
 
         {/* Clinical sidebar */}
         <div className="w-full lg:w-[380px] xl:w-[400px] flex flex-col border-t lg:border-t-0 lg:border-l border-slate-200 bg-slate-50/80 min-h-0 max-h-[50vh] lg:max-h-none overflow-hidden">
+          <div className="shrink-0 p-4 pb-0">
+            <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-700">Prescription</p>
+                <p className="text-[11px] text-slate-500 truncate">
+                  {saveState === 'saving' || savingPrescription
+                    ? 'Saving…'
+                    : saveState === 'dirty'
+                      ? 'Unsaved changes'
+                      : saveState === 'saved' && lastSavedAt
+                        ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                        : 'Save anytime during the call'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => saveConsultationDraft()}
+                disabled={savingPrescription || saveState === 'saving'}
+                className="shrink-0 px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-xs font-bold uppercase tracking-wide"
+              >
+                Save
+              </button>
+            </div>
+          </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {/* Patient profile */}
             <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
@@ -664,6 +764,12 @@ const DoctorVideoConsultRoom = ({
                 </div>
               ) : (
                 <p className="text-xs text-slate-400">No symptoms recorded for this booking.</p>
+              )}
+              {patientBookingNotes.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Patient notes at booking</p>
+                  <p className="text-xs text-slate-700 leading-relaxed">{patientBookingNotes.join(' · ')}</p>
+                </div>
               )}
             </section>
 

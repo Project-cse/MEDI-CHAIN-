@@ -145,7 +145,7 @@ class _ConsultationSummaryScreenState extends ConsumerState<ConsultationSummaryS
                 AppButton(
                   label: 'View appointment',
                   variant: AppButtonVariant.secondary,
-                  onPressed: () => context.push('/appointment-detail/${widget.appointmentId}'),
+                  onPressed: () => context.push('/appointments/${widget.appointmentId}'),
                 ),
                 const SizedBox(height: 12),
                 AppButton(

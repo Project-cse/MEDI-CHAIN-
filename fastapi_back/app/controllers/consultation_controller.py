@@ -442,7 +442,20 @@ async def end_video_call_for_doctor(doctor_id: int, appointment_id: int, req_bod
     )
     if result.get('success'):
         result['ended'] = True
+        result['message'] = result.get('message') or 'Consultation ended'
     return result
+
+
+async def save_consultation_for_doctor(
+    doctor_id: int, appointment_id: int, req_body: dict | None = None
+):
+    from app.controllers import lifecycle_controller
+
+    return await lifecycle_controller.save_consultation_draft(
+        doctor_id,
+        int(appointment_id),
+        req_body or {},
+    )
 
 
 async def get_video_call_status_for_user(user_id: int, appointment_id: int):
