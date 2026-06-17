@@ -120,7 +120,7 @@ def _data_table(rows: List[Tuple[str, str]], tint: str = "#EFF6FF") -> str:
 def _cta_button(label: str, url: str, color: str = BRAND_BLUE) -> str:
     safe_url = _e(url or "#")
     return f"""
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 8px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0 4px;">
       <tr>
         <td align="center">
           <a href="{safe_url}" target="_blank"
@@ -222,18 +222,26 @@ def otp_verification(otp: str, purpose: str = "account verification") -> str:
 
 def appointment_confirmed(details: dict, view_url: str) -> str:
     patient = details.get("patientName", "Patient")
+    hospital_name = details.get("hospitalName", "MEDCLUES Partner Hospital")
+    hospital_location = details.get("hospitalLocation") or details.get("hospitalAddress") or ""
+    maps_url = (details.get("mapsLink") or "").strip()
+
     rows = [
         ("Doctor", details.get("doctorName", "")),
         ("Specialty", details.get("speciality", "")),
         ("Date & Time", f"{details.get('date', '')}, {details.get('time', '')}"),
         ("Token Number", f"#{details.get('tokenNumber', 'N/A')}"),
-        ("Hospital", details.get("hospitalName", "MEDCLUES Partner Hospital")),
-        ("Appointment ID", details.get("publicId", "")),
-        ("Receipt / QR Code", details.get("bookingId", "")),
-        ("Consultation Fee", f"Rs. {details.get('fee', '')}"),
+        ("Hospital", hospital_name),
     ]
-    if details.get("hospitalLocation"):
-        rows.insert(5, ("Location", details.get("hospitalLocation")))
+    if hospital_location:
+        rows.append(("Location", hospital_location))
+    rows.extend([
+        ("Booking ID", details.get("bookingId", details.get("publicId", ""))),
+        ("Consultation Fee", f"Rs. {details.get('fee', '')}"),
+    ])
+
+    maps_cta = _cta_button("View in Maps", maps_url, BRAND_BLUE) if maps_url else ""
+
     content = f"""
     {_icon_circle("&#128197;", BRAND_GREEN, "#ECFDF5")}
     {_heading("Appointment Confirmed!", BRAND_GREEN)}
@@ -241,6 +249,7 @@ def appointment_confirmed(details: dict, view_url: str) -> str:
     {_body_text("Your appointment has been booked successfully. Please find the details below.")}
     {_data_table([(l, v) for l, v in rows if v], "#ECFDF5")}
     {_cta_button("View Appointment", view_url, BRAND_GREEN)}
+    {maps_cta}
     {_note_box("Please arrive 15 minutes early and carry a valid ID proof.", "#ECFDF5", BRAND_GREEN)}
     """
     return wrap_email(content)

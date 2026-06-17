@@ -117,11 +117,7 @@ async def login_user(req_body: dict):
                 except Exception as hash_err:
                     print(f"[WARNING] Failed to secure user password on login: {hash_err}", flush=True)
 
-            # --- Login Alert ---
-            try:
-                await email_service.send_login_alert(user['email'], user['name'])
-            except Exception as e:
-                print(f"[WARNING] Login alert email failed: {e}")
+            # Login security emails disabled per product policy.
 
             return auth_response
         else:
@@ -198,12 +194,6 @@ async def social_login(req_body: dict):
 
         auth_response = await token_service.issue_token_pair("patient", user_id=user['id'])
         auth_response["isNewUser"] = is_new_user
-
-        # --- Login Alert ---
-        try:
-            await email_service.send_login_alert(user['email'], user['name'])
-        except Exception as e:
-            print(f"[WARNING] Login alert email failed: {e}")
 
         return auth_response
 
@@ -393,6 +383,83 @@ import hashlib
 razorpay_client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
 
+async def _resolve_booking_hospital_location(
+    doc_data: dict,
+    frontend_hospital_name: Optional[str] = None,
+    frontend_location: Optional[str] = None,
+) -> tuple[str, str, str]:
+    """Return (hospital_name, full_address, maps_url) for booking notifications."""
+    import urllib.parse
+
+    hospital_name = (
+        (frontend_hospital_name or "").strip()
+        or (doc_data.get("hospital_name") or "").strip()
+        or "MEDCLUES Partner Hospital"
+    )
+
+    doctor_address = ", ".join(
+        p
+        for p in [
+            (doc_data.get("address_line1") or "").strip(),
+            (doc_data.get("address_line2") or "").strip(),
+        ]
+        if p
+    )
+
+    tieup_name = None
+    tieup_address = None
+    hosp_lat = None
+    hosp_lng = None
+
+    hosp_id = doc_data.get("hospital_id")
+    if hosp_id:
+        tieup = await db.fetch_row(
+            "SELECT name, address FROM hospital_tieups WHERE id = $1", hosp_id
+        )
+        if tieup:
+            tieup_name = (tieup.get("name") or "").strip()
+            tieup_address = (tieup.get("address") or "").strip()
+        else:
+            hosp = await db.fetch_row(
+                """
+                SELECT name, address_line1, address_line2, latitude, longitude
+                FROM hospitals WHERE id = $1
+                """,
+                hosp_id,
+            )
+            if hosp:
+                tieup_name = (hosp.get("name") or "").strip()
+                tieup_address = ", ".join(
+                    p.strip()
+                    for p in [hosp.get("address_line1"), hosp.get("address_line2")]
+                    if p and str(p).strip()
+                )
+                hosp_lat = hosp.get("latitude")
+                hosp_lng = hosp.get("longitude")
+
+    if tieup_name and hospital_name == "MEDCLUES Partner Hospital":
+        hospital_name = tieup_name
+
+    full_address = (frontend_location or "").strip()
+    if not full_address:
+        full_address = tieup_address or doctor_address
+    if not full_address:
+        full_address = hospital_name
+
+    if hosp_lat is not None and hosp_lng is not None:
+        try:
+            lat = float(hosp_lat)
+            lng = float(hosp_lng)
+            if lat != 0.0 or lng != 0.0:
+                return hospital_name, full_address, f"https://www.google.com/maps?q={lat},{lng}"
+        except (TypeError, ValueError):
+            pass
+
+    maps_query = urllib.parse.quote(f"{hospital_name}, {full_address}")
+    maps_url = f"https://www.google.com/maps/search/?api=1&query={maps_query}"
+    return hospital_name, full_address, maps_url
+
+
 async def _send_booking_confirmation_email(
     *,
     user_email: str,
@@ -422,32 +489,13 @@ async def _send_booking_confirmation_email(
             "bookingId": booking_id or f"#APT{appointment_id}",
         }
 
-        address_line1 = doc_data.get('address_line1', '')
-        address_line2 = doc_data.get('address_line2', '')
-        hospital_location = " ".join(filter(None, [address_line1, address_line2])).strip()
+        hospital_name, hospital_location_str, maps_link = await _resolve_booking_hospital_location(
+            doc_data,
+            frontend_hospital_name=frontend_hospital_name,
+            frontend_location=frontend_location,
+        )
 
-        if not hospital_location:
-            hosp_id = doc_data.get('hospital_id')
-            if hosp_id:
-                tieup = await db.fetch_row("SELECT name, address FROM hospital_tieups WHERE id = $1", hosp_id)
-                if tieup:
-                    hospital_location = f"{tieup['name']} - {tieup['address']}" if tieup['address'] else tieup['name']
-                else:
-                    hosp = await db.fetch_row("SELECT name, address_line1 FROM hospitals WHERE id = $1", hosp_id)
-                    if hosp:
-                        hospital_location = f"{hosp['name']} - {hosp['address_line1']}" if hosp['address_line1'] else hosp['name']
-
-        if frontend_hospital_name and frontend_location:
-            hospital_location_str = f"{frontend_hospital_name} - {frontend_location}"
-            email_details["hospitalName"] = frontend_hospital_name
-        else:
-            hospital_location_str = hospital_location or "MEDCLUES Partner Hospital"
-            email_details["hospitalName"] = "MEDCLUES Partner Hospital"
-
-        import urllib.parse
-        maps_query = urllib.parse.quote(hospital_location_str)
-        maps_link = f"https://www.google.com/maps/search/?api=1&query={maps_query}"
-
+        email_details["hospitalName"] = hospital_name
         email_details["hospitalLocation"] = hospital_location_str
         email_details["mapsLink"] = maps_link
 
@@ -476,29 +524,11 @@ async def _send_booking_telegram_notification(
         from app.services import telegram_notify_service
 
         patient_name = actual_patient.get("name") if not actual_patient.get("isSelf") else user_name
-        hospital_name = frontend_hospital_name or "MEDCLUES Partner Hospital"
-        hospital_location = frontend_location or ""
-
-        if not hospital_location:
-            address_line1 = doc_data.get("address_line1", "")
-            address_line2 = doc_data.get("address_line2", "")
-            hospital_location = " ".join(filter(None, [address_line1, address_line2])).strip()
-            if not hospital_location:
-                hosp_id = doc_data.get("hospital_id")
-                if hosp_id:
-                    tieup = await db.fetch_row(
-                        "SELECT name, address FROM hospital_tieups WHERE id = $1", hosp_id
-                    )
-                    if tieup:
-                        hospital_location = tieup["name"]
-                        hospital_name = tieup["name"]
-                    else:
-                        hosp = await db.fetch_row(
-                            "SELECT name, address_line1 FROM hospitals WHERE id = $1", hosp_id
-                        )
-                        if hosp:
-                            hospital_location = hosp["name"]
-                            hospital_name = hosp["name"]
+        hospital_name, hospital_location, maps_link = await _resolve_booking_hospital_location(
+            doc_data,
+            frontend_hospital_name=frontend_hospital_name,
+            frontend_location=frontend_location,
+        )
 
         await telegram_notify_service.notify_appointment_booked(
             user_id,
@@ -512,6 +542,7 @@ async def _send_booking_telegram_notification(
             hospital_location=hospital_location,
             appointment_id=int(appointment_id),
             appointment_public_id=appointment_public_id,
+            maps_url=maps_link,
         )
     except Exception as tg_err:
         print(f"[WARNING] Telegram booking notify: {tg_err}")

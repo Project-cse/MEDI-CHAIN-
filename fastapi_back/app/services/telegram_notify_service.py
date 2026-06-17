@@ -73,12 +73,13 @@ async def notify_appointment_booked(
     hospital_location: str = "",
     appointment_id: int,
     appointment_public_id: Optional[str] = None,
+    maps_url: Optional[str] = None,
 ) -> bool:
-    maps_url = None
-    loc = hospital_location or hospital_name
-    if loc:
-        q = urllib.parse.quote(loc)
-        maps_url = f"https://www.google.com/maps/search/?api=1&query={q}"
+    if not maps_url:
+        loc = hospital_location or hospital_name
+        if loc:
+            q = urllib.parse.quote(loc)
+            maps_url = f"https://www.google.com/maps/search/?api=1&query={q}"
 
     text = msg.appointment_booked_message(
         patient_name,

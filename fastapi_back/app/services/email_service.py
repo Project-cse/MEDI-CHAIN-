@@ -149,10 +149,8 @@ async def send_welcome_email(email: str, name: str):
 
 
 async def send_login_alert(email: str, name: str):
-    subject = "Security Alert: New Login — MEDCLUES"
-    now = datetime.now().strftime("%d %B %Y, %I:%M %p")
-    html_content = tpl.login_security_alert(name, now)
-    return await send_email(email, subject, html_content, name)
+    """Disabled — login security emails are not sent."""
+    return {"success": True, "message": "Login alert emails disabled"}
 
 
 async def send_appointment_rejection(email: str, name: str, details: dict):
