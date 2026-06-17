@@ -1,4 +1,4 @@
-import React, { useContext } from 'react'
+import React, { useContext, useEffect } from 'react'
 import { DoctorContext } from './context/DoctorContext';
 import { AdminContext } from './context/AdminContext';
 import { DeanContext } from './context/DeanContext';
@@ -55,10 +55,22 @@ const App = () => {
   const { dToken } = useContext(DoctorContext)
   const { aToken } = useContext(AdminContext)
   const { deanToken } = useContext(DeanContext)
-  const { sidebarOpen, setSidebarOpen } = useContext(AppContext)
+  const { sidebarOpen, setSidebarOpen, darkMode } = useContext(AppContext)
   const location = useLocation()
 
   const isAuthenticated = dToken || aToken || deanToken
+
+  // Login/auth screens are always light; dashboard respects user toggle (default light)
+  useEffect(() => {
+    const root = document.documentElement
+    if (!isAuthenticated) {
+      root.classList.remove('dark')
+      root.classList.add('login-light')
+      return () => root.classList.remove('login-light')
+    }
+    root.classList.remove('login-light')
+    root.classList.toggle('dark', darkMode)
+  }, [isAuthenticated, darkMode])
 
   return isAuthenticated ? (
     <div className='relative w-full h-screen h-dvh medical-bg text-mc-text flex flex-col overflow-hidden'>

@@ -1598,6 +1598,54 @@ html,
   box-shadow: 0 0 8px var(--bioluminescent-teal);
 }
 
+/* Login page: always light theme (no dark mode) */
+html.login-light {
+    color-scheme: light;
+}
+
+html.login-light,
+html.login-light.dark {
+    --mc-bg: #F7FAFF;
+    --mc-surface: #FFFFFF;
+    --mc-surface-elevated: #F8FAFC;
+    --mc-text: #0F172A;
+    --mc-text-muted: #64748B;
+    --mc-border: #E2E8F0;
+    --mc-accent: #38BDF8;
+    --text-dark: #1A1C26;
+    --text-gray: #6B7280;
+    --text-light: #9CA3AF;
+    --border-color: #E5E7EB;
+    --gradient-soft: linear-gradient(135deg, #F7FAFF 0%, #EEF2FF 100%);
+}
+
+html.login-light.dark .bg-white,
+html.login-light .bg-white {
+    background-color: #ffffff !important;
+}
+
+html.login-light.dark .bg-slate-50,
+html.login-light .bg-slate-50,
+html.login-light.dark .bg-gray-50,
+html.login-light .bg-gray-50 {
+    background-color: #f8fafc !important;
+}
+
+html.login-light.dark .text-gray-900,
+html.login-light .text-gray-900,
+html.login-light.dark .text-slate-900,
+html.login-light .text-slate-900 {
+    color: #0f172a !important;
+}
+
+html.login-light input,
+html.login-light select,
+html.login-light textarea {
+    background-color: #f8fafc;
+    color: #0f172a;
+    border-color: #e2e8f0;
+}
+
 /* ===== MEDCLUES Dark Mode ===== */
 .dark {
     color-scheme: dark;

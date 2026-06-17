@@ -53,13 +53,11 @@ const AppContextProvider = (props) => {
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const [darkMode, setDarkMode] = useState(() => {
         if (typeof window === 'undefined') return false
-        const saved = localStorage.getItem('medclues-theme')
-        if (saved) return saved === 'dark'
-        return window.matchMedia('(prefers-color-scheme: dark)').matches
+        // Light mode by default; dark only when user explicitly chose it
+        return localStorage.getItem('medclues-theme') === 'dark'
     })
 
     useEffect(() => {
-        document.documentElement.classList.toggle('dark', darkMode)
         localStorage.setItem('medclues-theme', darkMode ? 'dark' : 'light')
     }, [darkMode])
 
