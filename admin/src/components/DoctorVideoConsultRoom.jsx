@@ -74,7 +74,10 @@ const DoctorVideoConsultRoom = ({
   const [chatInput, setChatInput] = useState('')
   const [chatMessages, setChatMessages] = useState([])
   const [prescription, setPrescription] = useState('')
+  const [diagnosis, setDiagnosis] = useState('')
   const [consultNotes, setConsultNotes] = useState('')
+  const [advice, setAdvice] = useState('')
+  const [followupDate, setFollowupDate] = useState('')
   const [cameraHint, setCameraHint] = useState(
     !publishCameraInitial
       ? 'Receive-only: your camera is off so the patient can use the webcam on this device.'
@@ -169,7 +172,14 @@ const DoctorVideoConsultRoom = ({
       try {
         await axios.post(
           `${backendUrl}/api/doctor/appointments/${appointmentId}/end-video-call`,
-          { consultationId, prescription, notes: consultNotes },
+          {
+            consultationId,
+            prescription,
+            notes: consultNotes,
+            diagnosis,
+            advice,
+            followupDate: followupDate || undefined,
+          },
           { headers: { dToken: authToken } }
         )
       } catch (_) {}
@@ -669,6 +679,18 @@ const DoctorVideoConsultRoom = ({
               )}
             </section>
 
+            {/* Diagnosis */}
+            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Diagnosis</h3>
+              <textarea
+                value={diagnosis}
+                onChange={(e) => setDiagnosis(e.target.value)}
+                rows={2}
+                placeholder="Primary diagnosis…"
+                className="w-full text-xs border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-y"
+              />
+            </section>
+
             {/* Prescription editor */}
             <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
               <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Prescription Editor</h3>
@@ -683,13 +705,34 @@ const DoctorVideoConsultRoom = ({
 
             {/* Consultation notes */}
             <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Consultation Notes</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Clinical notes</h3>
               <textarea
                 value={consultNotes}
                 onChange={(e) => setConsultNotes(e.target.value)}
-                rows={4}
-                placeholder="Diagnosis, advice, follow-up…"
+                rows={3}
+                placeholder="Exam findings, vitals…"
                 className="w-full text-xs border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-y"
+              />
+            </section>
+
+            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Advice to patient</h3>
+              <textarea
+                value={advice}
+                onChange={(e) => setAdvice(e.target.value)}
+                rows={2}
+                placeholder="Diet, rest, warning signs…"
+                className="w-full text-xs border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-y"
+              />
+            </section>
+
+            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Follow-up date</h3>
+              <input
+                type="date"
+                value={followupDate}
+                onChange={(e) => setFollowupDate(e.target.value)}
+                className="w-full text-xs border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
               />
             </section>
 

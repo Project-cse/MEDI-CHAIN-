@@ -26,6 +26,8 @@ import AllAppointments from './pages/Admin/AllAppointments';
 import DoctorsList from './pages/Admin/DoctorsList';
 import AddDoctor from './pages/Admin/AddDoctor';
 import RevenueAnalytics from './pages/Admin/RevenueAnalytics';
+import RefundManagement from './pages/Admin/RefundManagement';
+import ReceptionScan from './pages/Admin/ReceptionScan';
 import DeanPortals from './pages/Admin/DeanPortals';
 
 // Doctor pages
@@ -93,6 +95,8 @@ const App = () => {
             <Route path='/doctor-list' element={<DoctorsList />} />
             <Route path='/add-doctor' element={<AddDoctor />} />
             <Route path='/revenue-analytics' element={<RevenueAnalytics />} />
+            <Route path='/reception-scan' element={<ReceptionScan />} />
+            <Route path='/refund-management' element={<RefundManagement />} />
 
             {/* ── Doctor Routes ────────────────────────────────── */}
             <Route path='/doctor-dashboard' element={<DoctorDashboard />} />

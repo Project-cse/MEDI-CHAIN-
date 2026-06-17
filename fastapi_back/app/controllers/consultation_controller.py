@@ -425,7 +425,21 @@ async def end_video_call_for_doctor(doctor_id: int, appointment_id: int, req_bod
     appointment = await appointment_model.get_appointment_by_id(int(appointment_id))
     if not appointment or appointment['doctor_id'] != doctor_id:
         return {'success': False, 'message': 'Appointment not found'}
-    return await end_video_call_for_appointment(appointment_id, req_body)
+    req_body = req_body or {}
+    from app.controllers import call_session_controller, lifecycle_controller
+    await call_session_controller.mark_completed(int(appointment_id))
+    return await lifecycle_controller.complete_consultation(
+        doctor_id,
+        int(appointment_id),
+        {
+            'prescription': req_body.get('prescription'),
+            'notes': req_body.get('notes'),
+            'diagnosis': req_body.get('diagnosis'),
+            'advice': req_body.get('advice'),
+            'followupDate': req_body.get('followupDate') or req_body.get('followup_date'),
+            'attachments': req_body.get('attachments') or [],
+        },
+    )
 
 
 async def get_video_call_status_for_user(user_id: int, appointment_id: int):

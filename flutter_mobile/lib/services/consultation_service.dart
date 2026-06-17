@@ -77,6 +77,41 @@ class CallSessionStatus {
   }
 }
 
+class ConsultationSummary {
+  const ConsultationSummary({
+    this.diagnosis,
+    this.prescription,
+    this.notes,
+    this.advice,
+    this.followupDate,
+    this.attachments = const [],
+  });
+
+  final String? diagnosis;
+  final String? prescription;
+  final String? notes;
+  final String? advice;
+  final String? followupDate;
+  final List<dynamic> attachments;
+
+  bool get hasContent =>
+      (diagnosis?.trim().isNotEmpty ?? false) ||
+      (prescription?.trim().isNotEmpty ?? false) ||
+      (notes?.trim().isNotEmpty ?? false) ||
+      (advice?.trim().isNotEmpty ?? false);
+
+  factory ConsultationSummary.fromJson(Map<String, dynamic> json) {
+    return ConsultationSummary(
+      diagnosis: json['diagnosis']?.toString(),
+      prescription: json['prescription']?.toString(),
+      notes: json['notes']?.toString(),
+      advice: json['advice']?.toString(),
+      followupDate: json['followupDate']?.toString() ?? json['followup_date']?.toString(),
+      attachments: json['attachments'] is List ? List<dynamic>.from(json['attachments'] as List) : const [],
+    );
+  }
+}
+
 class ConsultationService {
   ConsultationService(this._api);
 
@@ -134,6 +169,17 @@ class ConsultationService {
       data: {},
     );
     return res.data ?? {};
+  }
+
+  Future<ConsultationSummary?> fetchConsultationSummary(String appointmentId) async {
+    final res = await _api.get<Map<String, dynamic>>(
+      ApiConfig.consultationSummary(appointmentId),
+    );
+    final data = res.data ?? {};
+    if (data['success'] != true) return null;
+    final summary = data['summary'];
+    if (summary is! Map) return null;
+    return ConsultationSummary.fromJson(Map<String, dynamic>.from(summary));
   }
 
   Future<Map<String, dynamic>> endVideoCall(String appointmentId, {int? consultationId}) async {

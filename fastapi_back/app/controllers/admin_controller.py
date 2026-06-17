@@ -734,3 +734,45 @@ async def _get_hospital_doctors_merged(hospital_id: int):
             })
             seen_names.add(name_key)
     return real_doctors
+
+
+async def get_hospital_appointment_policy(hospital_id: int):
+    from app.models import hospital_policy_model
+    policy = await hospital_policy_model.get_policy(int(hospital_id))
+    return {"success": True, "policy": policy}
+
+
+async def update_hospital_appointment_policy(hospital_id: int, body: dict):
+    from app.models import hospital_policy_model
+    policy = await hospital_policy_model.upsert_policy(int(hospital_id), body)
+    return {"success": True, "policy": policy}
+
+
+async def list_pending_refunds():
+    from app.services import refund_service
+    rows = await refund_service.list_pending_refunds()
+    return {"success": True, "refunds": rows}
+
+
+async def complete_refund(refund_id: int):
+    from app.services import refund_service
+    row = await refund_service.mark_refund_completed(int(refund_id))
+    return {"success": True, "refund": row}
+
+
+async def get_patient_trust_profile(user_id: int):
+    from app.services import trust_score_service
+    profile = await trust_score_service.get_profile(int(user_id))
+    return {"success": True, "profile": profile}
+
+
+async def book_appointment_override(body: dict):
+    from app.controllers import user_controller
+    user_id = body.get("userId") or body.get("user_id")
+    if not user_id:
+        return {"success": False, "message": "userId required"}
+    book_body = {**body, "adminOverride": True}
+    book_body.pop("userId", None)
+    book_body.pop("user_id", None)
+    return await user_controller.book_appointment(int(user_id), book_body)
+

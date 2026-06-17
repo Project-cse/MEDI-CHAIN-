@@ -146,3 +146,36 @@ async def list_admins(admin_email: str = Depends(auth_admin)):
 @router.get("/revenue-analytics")
 async def get_revenue_analytics(admin_email: str = Depends(auth_admin)):
     return await admin_controller.get_revenue_analytics()
+
+
+@router.get("/hospitals/{hospital_id}/appointment-policy")
+async def get_hospital_policy(hospital_id: int, admin_email: str = Depends(auth_admin)):
+    return await admin_controller.get_hospital_appointment_policy(hospital_id)
+
+
+@router.put("/hospitals/{hospital_id}/appointment-policy")
+async def update_hospital_policy(hospital_id: int, req: Request, admin_email: str = Depends(auth_admin)):
+    body = await req.json()
+    return await admin_controller.update_hospital_appointment_policy(hospital_id, body)
+
+
+@router.get("/refunds/pending")
+async def pending_refunds(admin_email: str = Depends(auth_admin)):
+    return await admin_controller.list_pending_refunds()
+
+
+@router.post("/refunds/{refund_id}/complete")
+async def complete_refund(refund_id: int, admin_email: str = Depends(auth_admin)):
+    return await admin_controller.complete_refund(refund_id)
+
+
+@router.get("/patients/{user_id}/trust-profile")
+async def patient_trust_profile(user_id: int, admin_email: str = Depends(auth_admin)):
+    return await admin_controller.get_patient_trust_profile(user_id)
+
+
+@router.post("/appointments/book-override")
+async def book_override(req: Request, admin_email: str = Depends(auth_admin)):
+    body = await req.json()
+    return await admin_controller.book_appointment_override(body)
+

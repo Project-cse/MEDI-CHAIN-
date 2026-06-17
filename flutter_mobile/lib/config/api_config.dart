@@ -114,6 +114,15 @@ class ApiConfig {
   static const String userAppointments = '/api/user/appointments';
   static const String bookAppointment = '/api/user/book-appointment';
   static const String cancelAppointment = '/api/user/cancel-appointment';
+  static const String bookingConstraints = '/api/user/booking-constraints';
+  static String appointmentLifecycle(String appointmentId) =>
+      '/api/user/appointments/$appointmentId/lifecycle';
+  static String consultationSummary(String appointmentId) =>
+      '/api/user/appointments/$appointmentId/consultation-summary';
+  static String followupVisit(String appointmentId) =>
+      '/api/user/appointments/$appointmentId/followup-visit';
+  static String graceReschedule(String appointmentId) =>
+      '/api/user/appointments/$appointmentId/grace-reschedule';
   static String appointmentByBookingId(String bookingId) =>
       '/api/appointments/$bookingId';
   static String callRequestForAppointment(String appointmentId) =>

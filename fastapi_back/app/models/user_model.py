@@ -9,7 +9,7 @@ async def get_all_users():
 
 async def get_all_users_minimal():
     """Fetch only basic user info for management lists to improve performance."""
-    sql = 'SELECT id, public_id, name, email, phone, image, address_line1, address_line2, gender, dob, age, blood_group, role, created_at FROM users ORDER BY created_at DESC'
+    sql = 'SELECT id, public_id, name, email, phone, image, address_line1, address_line2, gender, dob, age, blood_group, role, created_at, trust_score, trust_level, total_no_shows, completed_visits FROM users ORDER BY created_at DESC'
     return await db.query(sql)
 
 async def get_user_by_id(user_id: int):

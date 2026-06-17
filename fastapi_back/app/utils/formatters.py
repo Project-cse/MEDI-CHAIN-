@@ -62,6 +62,10 @@ def format_user(user: Any) -> Optional[Dict[str, Any]]:
         "emergencyContactCompleted": bool(u.get('emergency_contact_completed')),
         "profileCompleted": bool(u.get('profile_completed')),
         "onboardingStep": int(u.get('onboarding_step') or 0),
+        "trustScore": int(u.get('trust_score') or 100),
+        "trustLevel": u.get('trust_level'),
+        "totalNoShows": int(u.get('total_no_shows') or 0),
+        "completedVisits": int(u.get('completed_visits') or 0),
     }
 
 def _rating_from_experience(experience) -> float:
@@ -224,7 +228,7 @@ def format_appointment_for_frontend(apt: Dict[str, Any], user_data: Optional[Dic
     mode_val = apt.get('mode')
     visit_type = 'Online' if str(mode_val or '').lower() in ('online', 'video') else 'In-clinic'
 
-    return {
+    payload = {
         '_id': apt['id'],
         'id': apt['id'],
         'publicId': apt.get('public_id'),
@@ -249,6 +253,12 @@ def format_appointment_for_frontend(apt: Dict[str, Any], user_data: Optional[Dic
         'tokenNumber': apt.get('token_number'),
         'bookingId': apt.get('booking_id'),
     }
+    try:
+        from app.services import appointment_lifecycle_service
+        payload.update(appointment_lifecycle_service.lifecycle_payload(apt))
+    except Exception:
+        pass
+    return payload
 
 
 def format_health_record(record: Any) -> Optional[Dict[str, Any]]:

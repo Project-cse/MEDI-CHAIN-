@@ -98,24 +98,30 @@ const DoctorContextProvider = (props) => {
     }
 
     // Function to Mark appointment completed using API
-    const completeAppointment = async (appointmentId) => {
+    const completeAppointment = async (appointmentId, consultationData = {}) => {
 
         try {
 
-            const { data } = await axios.post(backendUrl + '/api/doctor/complete-appointment', { appointmentId }, { headers: { dToken } })
+            const { data } = await axios.post(
+                backendUrl + '/api/doctor/complete-appointment',
+                { appointmentId, ...consultationData },
+                { headers: { dToken } }
+            )
 
             if (data.success) {
-                toast.success(data.message)
+                toast.success(data.message || 'Consultation completed — patient will see prescription in app')
                 getAppointments()
-                // Later after creating getDashData Function
                 getDashData()
+                return true
             } else {
                 toast.error(data.message)
+                return false
             }
 
         } catch (error) {
             toast.error(error.message)
             console.log(error)
+            return false
         }
 
     }

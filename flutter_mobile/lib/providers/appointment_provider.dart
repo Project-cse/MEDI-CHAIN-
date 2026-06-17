@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/appointment_model.dart';
 import '../models/slot_model.dart';
+import '../services/consultation_service.dart';
 import 'service_providers.dart';
 
 final upcomingAppointmentsProvider = FutureProvider.autoDispose<List<AppointmentModel>>((ref) {
@@ -19,6 +20,11 @@ final cancelledAppointmentsProvider = FutureProvider.autoDispose<List<Appointmen
 final appointmentDetailProvider =
     FutureProvider.autoDispose.family<AppointmentModel, String>((ref, id) {
   return ref.watch(appointmentRepositoryProvider).getById(id);
+});
+
+final consultationSummaryProvider =
+    FutureProvider.autoDispose.family<ConsultationSummary?, String>((ref, appointmentId) {
+  return ref.watch(consultationServiceProvider).fetchConsultationSummary(appointmentId);
 });
 
 /// Full 5-day schedule — one API call per doctor + mode (reused when switching dates).

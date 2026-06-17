@@ -520,10 +520,34 @@ async def _send_booking_telegram_notification(
 async def book_appointment(user_id: int, req_body: dict, prescription_file: Optional[UploadFile] = None):
     try:
         from app.utils.ownership import reject_client_user_override
+        from app.services.appointment_lifecycle_service import (
+            assert_can_book,
+            AppointmentPolicyError,
+        )
+        from app.services import trust_score_service
 
         override_err = reject_client_user_override(req_body, user_id)
         if override_err:
             return override_err
+
+        admin_override = bool(req_body.get("adminOverride"))
+        try:
+            await assert_can_book(user_id, admin_override=admin_override)
+        except AppointmentPolicyError as exc:
+            return {"success": False, "message": exc.message}
+
+        payment_method_early = req_body.get("paymentMethod") or "payOnVisit"
+        constraints = await trust_score_service.booking_constraints(user_id)
+        if constraints.get("advancePaymentRequired") and payment_method_early.lower() in (
+            "payonvisit",
+            "cash",
+            "",
+        ):
+            return {
+                "success": False,
+                "message": "Advance online payment is required for your account.",
+                "advancePaymentRequired": True,
+            }
 
         doc_id = req_body.get('docId')
         db_doc_id = doc_id
@@ -606,6 +630,16 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
             )
             if slot_err:
                 return {"success": False, "message": slot_err}
+            from app.services import slot_capacity_service
+
+            cap_doc_id = int(resolved_slot.get("doctor_numeric_id") or db_doc_id)
+            cap_err = await slot_capacity_service.assert_capacity_available(
+                cap_doc_id,
+                resolved_slot,
+                slot_date_str=slot_date,
+            )
+            if cap_err:
+                return {"success": False, "message": cap_err}
             booked = await doctor_slot_model.mark_slot_booked(int(resolved_slot['id']))
             if not booked:
                 return {"success": False, "message": "This time was just booked by another patient."}
@@ -723,6 +757,33 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
                 await doctor_slot_model.release_slot(booked_slot_id)
             raise create_err
 
+        try:
+            from app.models import hospital_policy_model
+            from app.services import appointment_lifecycle_service
+
+            policy = await hospital_policy_model.get_policy_for_doctor(
+                int(db_doc_id) if isinstance(db_doc_id, int) else db_doc_id
+            )
+            paid_now = payment_method.lower() in (
+                "razorpay",
+                "onlinepayment",
+                "online",
+            )
+            await appointment_lifecycle_service.apply_booking_defaults(
+                int(new_appointment["id"]),
+                hospital_id=doc_data.get("hospital_id"),
+                validity_days=int(policy.get("validity_days") or 7),
+                max_visits=int(policy.get("max_visits") or 3),
+                followup_visits_max=int(policy.get("followup_visits") or 1),
+                paid_at_booking=paid_now,
+            )
+            if paid_now:
+                await appointment_lifecycle_service.mark_paid_confirmed(
+                    int(new_appointment["id"])
+                )
+        except Exception as lifecycle_err:
+            print(f"[WARNING] Lifecycle defaults: {lifecycle_err}")
+
         if mode.lower() in ('online', 'video'):
             try:
                 from app.controllers import consultation_controller
@@ -822,6 +883,7 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
             "tokenNumber": token_number,
             "queuePosition": queue_data.get('queuePosition'),
             "estimatedWaitTime": queue_data.get('estimated_wait_time'),
+            "bookingConstraints": constraints,
         }
 
     except Exception as e:
@@ -836,6 +898,8 @@ async def list_appointments(
 ):
     try:
         from app.utils.pagination import pagination_meta, with_pagination
+
+        from app.services import appointment_lifecycle_service
 
         total = await appointment_model.count_appointments_by_user_id(user_id)
         appointments = await appointment_model.get_appointments_by_user_id(
@@ -870,7 +934,8 @@ async def list_appointments(
                 "publicId": apt.get('public_id'),
                 "bookingId": apt.get('booking_id'),
                 "queuePosition": apt['queue_position'],
-                "estimatedWaitTime": apt['estimated_wait_time']
+                "estimatedWaitTime": apt['estimated_wait_time'],
+                **appointment_lifecycle_service.lifecycle_payload(apt),
             })
         payload = {"success": True, "appointments": formatted}
         return with_pagination(
@@ -888,20 +953,27 @@ async def list_appointments(
 
 async def cancel_appointment(user_id: int, appointment_id: int):
     try:
+        from app.controllers import lifecycle_controller
+
+        result = await lifecycle_controller.cancel_with_policy(
+            user_id,
+            int(appointment_id),
+            reason="Cancelled by user",
+        )
+        if not result.get("success"):
+            return result
+
         appointment = await appointment_model.get_appointment_by_id(int(appointment_id))
-        if not appointment or appointment['user_id'] != user_id:
-            return {"success": False, "message": "Unauthorized or not found"}
+        if not appointment:
+            return result
 
-        await appointment_model.cancel_appointment(appointment_id)
-
+        doc_id = appointment['doctor_id']
         try:
             from app.services import doctor_slot_service
             await doctor_slot_service.release_slot_for_appointment(appointment)
         except Exception as slot_err:
             print(f"[WARNING] Slot release on user cancel: {slot_err}")
 
-        # Release slot
-        doc_id = appointment['doctor_id']
         doc_data = await doctor_model.get_doctor_by_id(doc_id)
         if doc_data:
             slots_booked = doc_data.get('slots_booked', {})
@@ -975,7 +1047,12 @@ async def cancel_appointment(user_id: int, appointment_id: int):
         except Exception as tg_err:
             print(f"[WARNING] Telegram cancel notify: {tg_err}")
 
-        return {"success": True, "message": "Appointment Cancelled"}
+        return {
+            "success": True,
+            "message": "Appointment Cancelled",
+            "refund": result.get("refund"),
+            "lifecycle": result.get("lifecycle"),
+        }
     except Exception as e:
         return {"success": False, "message": str(e)}
 
@@ -1220,7 +1297,7 @@ def _format_staff_appointment_view(appointment: dict, queue_status: dict | None 
     elif appointment.get('is_completed'):
         status = 'completed'
 
-    return {
+    view = {
         "appointmentId": appt_id,
         "bookingId": appointment.get('booking_id'),
         "tokenNumber": token_number,
@@ -1242,6 +1319,12 @@ def _format_staff_appointment_view(appointment: dict, queue_status: dict | None 
         "queueLength": (queue_status or {}).get('queueLength'),
         "isNextUp": (queue_status or {}).get('currentAppointmentId') == appt_id,
     }
+    try:
+        from app.services import appointment_lifecycle_service
+        view.update(appointment_lifecycle_service.lifecycle_payload(appointment))
+    except Exception:
+        pass
+    return view
 
 
 async def verify_appointment(appointment_id: int, user_id: int = None):

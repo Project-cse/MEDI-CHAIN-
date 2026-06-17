@@ -310,6 +310,8 @@ async def _book_after_payment(user_id: int, pending: dict, razorpay_order_id: st
                     "paymentMethod": "razorpay",
                 },
             )
+            from app.services import appointment_lifecycle_service
+            await appointment_lifecycle_service.mark_paid_confirmed(int(real_appointment_id))
         except Exception as e:
             log.warning("Could not mark appointment paid: %s", e)
 

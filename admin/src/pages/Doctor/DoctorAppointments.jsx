@@ -6,17 +6,27 @@ import { DoctorContext } from '../../context/DoctorContext'
 import { AppContext } from '../../context/AppContext'
 import { assets } from '../../assets/assets'
 import AppointmentDetailModal from '../../components/AppointmentDetailModal'
+import CompleteConsultationModal from '../../components/CompleteConsultationModal'
 
 const DoctorAppointments = () => {
 
   const { dToken, appointments, getAppointments, cancelAppointment, completeAppointment } = useContext(DoctorContext)
   const { slotDateFormat, calculateAge, currency } = useContext(AppContext)
   const [selectedAppointment, setSelectedAppointment] = useState(null)
+  const [completeTarget, setCompleteTarget] = useState(null)
+  const [completing, setCompleting] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const [filteredAppointments, setFilteredAppointments] = useState([])
   const [viewMode, setViewMode] = useState('list') // 'list' or 'calendar'
 
-  // Initialize activeTab from URL parameter or default to 'all'
+  const handleCompleteSubmit = async (consultationData) => {
+    if (!completeTarget) return
+    setCompleting(true)
+    const ok = await completeAppointment(completeTarget._id, consultationData)
+    setCompleting(false)
+    if (ok) setCompleteTarget(null)
+  }
+
   const validTabs = ['today', 'all', 'cancelled']
   const [activeTab, setActiveTab] = useState(() => {
     const tabParam = searchParams.get('tab')
@@ -258,7 +268,7 @@ const DoctorAppointments = () => {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                               </button>
-                              <button onClick={() => completeAppointment(item._id)} className='p-2.5 bg-green-50 hover:bg-green-100 rounded-lg transition-colors'>
+                              <button onClick={() => setCompleteTarget(item)} className='p-2.5 bg-green-50 hover:bg-green-100 rounded-lg transition-colors'>
                                 <svg className='w-5 h-5 sm:w-6 sm:h-6 text-green-600' fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
@@ -360,7 +370,7 @@ const DoctorAppointments = () => {
                         </svg>
                       </button>
                       <button 
-                        onClick={() => completeAppointment(item._id)} 
+                        onClick={() => setCompleteTarget(item)} 
                         className='p-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition-all duration-300'
                         title="Complete"
                       >
@@ -378,6 +388,15 @@ const DoctorAppointments = () => {
           </div>
         </div>
       </div>
+      )}
+
+      {completeTarget && (
+        <CompleteConsultationModal
+          appointment={completeTarget}
+          onClose={() => setCompleteTarget(null)}
+          onSubmit={handleCompleteSubmit}
+          submitting={completing}
+        />
       )}
 
       {/* Appointment Detail Modal */}

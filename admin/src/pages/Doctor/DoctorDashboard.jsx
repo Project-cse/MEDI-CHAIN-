@@ -9,13 +9,24 @@ import { AppContext } from '../../context/AppContext'
 import AnimatedCounter from '../../components/ui/AnimatedCounter'
 import { getPatientName, getPatientAge, getPatientImage } from '../../utils/appointmentDisplay'
 import { isOnlineVideoAppointment } from '../../utils/videoConsult'
+import CompleteConsultationModal from '../../components/CompleteConsultationModal'
 
 const DoctorDashboard = () => {
 
   const { dToken, dashData, getDashData, cancelAppointment, completeAppointment } = useContext(DoctorContext)
   const { slotDateFormat, calculateAge, currency } = useContext(AppContext)
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [completeTarget, setCompleteTarget] = useState(null)
+  const [completing, setCompleting] = useState(false)
   const navigate = useNavigate()
+
+  const handleCompleteSubmit = async (consultationData) => {
+    if (!completeTarget) return
+    setCompleting(true)
+    const ok = await completeAppointment(completeTarget._id, consultationData)
+    setCompleting(false)
+    if (ok) setCompleteTarget(null)
+  }
 
   useEffect(() => {
 
@@ -329,7 +340,7 @@ const DoctorDashboard = () => {
                         </svg>
                       </button>
                       <button 
-                        onClick={() => completeAppointment(item._id)} 
+                        onClick={() => setCompleteTarget(item)} 
                         className='p-1 rounded-md bg-green-50 hover:bg-green-100 text-green-600 transition-all duration-300 hover:scale-110 shadow-sm'
                         title="Complete Appointment"
                       >
@@ -347,6 +358,15 @@ const DoctorDashboard = () => {
       </div>
 
       </div>
+
+      {completeTarget && (
+        <CompleteConsultationModal
+          appointment={completeTarget}
+          onClose={() => setCompleteTarget(null)}
+          onSubmit={handleCompleteSubmit}
+          submitting={completing}
+        />
+      )}
     </div>
   )
 }

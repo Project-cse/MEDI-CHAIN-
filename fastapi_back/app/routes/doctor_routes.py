@@ -31,7 +31,7 @@ async def appointment_reject(req: Request, doc_id: int = Depends(auth_doctor)):
 @router.post("/complete-appointment")
 async def appointment_complete(req: Request, doc_id: int = Depends(auth_doctor)):
     body = await req.json()
-    return await doctor_controller.appointment_complete(doc_id, body.get('appointmentId'))
+    return await doctor_controller.appointment_complete(doc_id, body.get('appointmentId'), body)
 
 @router.get("/list")
 async def doctor_list(hospitalId: Optional[int] = None):

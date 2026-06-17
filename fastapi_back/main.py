@@ -17,7 +17,7 @@ from app.routes import (
     health_record_routes, emergency_routes, ai_routes,
     job_application_routes, otp_routes, specialty_routes,
     location_routes, dean_routes, super_appointment_routes,
-    payments_routes, charts_routes, auth_routes, health_routes,
+    payments_routes, charts_routes, auth_routes, health_routes, reception_routes,
 )
 from app.middleware.request_logging import RequestLoggingMiddleware
 log.info("Routes imported.")
@@ -135,6 +135,11 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(start_reminder_scheduler())
     except Exception as rem_err:
         log.warning("Appointment reminder scheduler could not start: %s", rem_err)
+    try:
+        from app.services.no_show_scheduler import start_no_show_scheduler
+        asyncio.create_task(start_no_show_scheduler())
+    except Exception as ns_err:
+        log.warning("No-show scheduler could not start: %s", ns_err)
     yield
     # Shutdown logic
     log.info("Stopping FastAPI application...")
@@ -206,6 +211,7 @@ app.include_router(super_appointment_routes.router)
 app.include_router(payments_routes.router)
 app.include_router(charts_routes.router)
 app.include_router(auth_routes.router)
+app.include_router(reception_routes.router)
 
 # --- Real-time Socket.IO ---
 from app.services.socket_service import sio_app

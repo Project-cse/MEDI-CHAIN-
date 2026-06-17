@@ -17,10 +17,11 @@
 9. [Backend API Overview](#backend-api-overview)
 10. [Integrations](#integrations)
 11. [Real-Time & Video](#real-time--video)
-12. [Emergency Services](#emergency-services)
-13. [Scripts & Auxiliary Folders](#scripts--auxiliary-folders)
-14. [Development Notes](#development-notes)
-15. [License & Security](#license--security)
+12. [Appointment Lifecycle & Public IDs](#appointment-lifecycle--public-ids)
+13. [Emergency Services](#emergency-services)
+14. [Scripts & Auxiliary Folders](#scripts--auxiliary-folders)
+15. [Development Notes](#development-notes)
+16. [License & Security](#license--security)
 
 ---
 
@@ -82,7 +83,8 @@
 |---------|---------|
 | **Home & Discovery** | Specialities grid, top doctors, hospital tie-ups, symptoms-by-age/specialization, AI chatbot |
 | **Doctor Search** | By speciality, hospital, text search; doctor profile with fees and hospital info |
-| **Appointment Booking** | Slot selection, Razorpay payment, confirmation receipt with QR code and PDF |
+| **Appointment Booking** | Slot selection, Razorpay payment, confirmation receipt with QR code and PDF; single-active-appointment rule |
+| **Public IDs** | Human-readable IDs on receipts (e.g. `APT2026…`, `PAT…`, `BK…` booking QR) |
 | **My Appointments** | Upcoming/completed list, cancel, join video consult |
 | **Video Consult** | Agora RTC web room (`/video-consult/:appointmentId`) |
 | **Medical Records** | Upload and view lab reports, X-rays, prescriptions (Cloudinary) |
@@ -109,14 +111,17 @@ Single login page with **three portal cards** (Super Admin / Dean / Doctor).
 |------|----------|
 | Dashboard | KPIs, live charts, doctors/hospitals overview, Socket.IO live data |
 | Revenue Analytics | Revenue charts and analytics |
-| All Appointments | System-wide appointments, cancel/reject, specialty helpline |
-| Doctor List | Doctor CRUD, availability, bulk operations |
+| All Appointments | System-wide appointments, cancel/reject, specialty helpline, lifecycle status |
+| Doctor List | Doctor CRUD, availability, bulk operations, public ID (`DOC…`) |
 | Add Doctor | New doctor with Cloudinary image upload |
-| Hospital Tie-ups | Hospital CRUD, embedded doctors |
-| Manage Deans | Dean account management per hospital |
+| Hospital Tie-ups | Hospital CRUD, embedded doctors, per-hospital appointment policies |
+| Manage Deans | Dean account management per hospital (`DEA…` public IDs) |
+| Manage Admins | Admin account list (`ADM…` public IDs) |
 | Manage Labs | Diagnostic lab CRUD |
 | Manage Blood Banks | Blood bank CRUD |
-| Manage Users | Patient user management |
+| Manage Users | Patient user management, trust score and risk level |
+| Reception Scan | QR / booking ID check-in, visit count increment |
+| Refund Management | Pending refund queue, mark refunded (3–4 working day policy) |
 | System Settings | Platform settings UI |
 | Data Export | Export tables via `/api/admin/export/{table}` |
 
@@ -130,6 +135,8 @@ Single login page with **three portal cards** (Super Admin / Dean / Doctor).
 | Dean Patients | Patient list |
 | Dean Add Doctor | Add doctor to own hospital |
 | Dean Hospital | Hospital profile update |
+| Reception Scan | Hospital-scoped QR check-in via `/api/reception/scan` |
+| Grace Reschedules | Approve/reject paid no-show next-day requests |
 
 #### Doctor Portal
 
@@ -141,6 +148,7 @@ Single login page with **three portal cards** (Super Admin / Dean / Doctor).
 | Doctor Video Room | Agora video room per appointment |
 | Doctor Profile | Profile update |
 | Queue Management | Real-time patient queue (Socket.IO) |
+| Complete Consultation | Diagnosis, prescription, notes, advice, follow-up date → syncs to patient records |
 
 **Shared:** Real-time queue (`QueueManager` + Socket.IO), patient details modal, reports viewer, appointment email modal, PDF/Excel export, mobile-responsive sidebar.
 
@@ -175,8 +183,8 @@ Full patient app with **standalone Emergency Module** (works without login).
 | **Auth** | Login, 4-step signup wizard, forgot password OTP, Google Sign-In |
 | **Home** | Greeting, inline search, speciality grid, top doctors, quick-access tiles, drawer |
 | **Doctors** | List (filter/sort), search, profile, in-person + online booking |
-| **Booking** | Patient selector (For Me/Others), slot picker, symptoms, report upload, Razorpay (online), receipt PDF/share |
-| **Appointments** | Tabbed (Upcoming/Completed/Cancelled), detail, cancel, join video |
+| **Booking** | Patient selector (For Me/Others), slot picker, symptoms, report upload, Razorpay (online), receipt PDF/share; capacity-aware slots |
+| **Appointments** | Tabbed (Upcoming/Completed/Cancelled), detail, cancel (refund policy), join video, lifecycle status |
 | **Video Consult** | Agora RTC — mute, camera, timer, status polling |
 | **Hospitals** | All + nearby (GPS), hospital detail with doctors |
 | **Labs** | Searchable lab directory |
@@ -249,14 +257,15 @@ PMS FNL 2/
 │
 ├── fastapi_back/             # FastAPI REST API
 │   ├── main.py               # App entry, CORS, lifespan, Socket.IO mount
+│   ├── migrations/           # Numbered SQL migrations (014+ lifecycle)
 │   ├── app/
-│   │   ├── routes/           # 19 API route modules
-│   │   ├── controllers/      # 22 business logic controllers
-│   │   ├── models/           # 18 SQLAlchemy models
-│   │   ├── services/         # Email, Agora, Telegram, AI, queue, SMS
+│   │   ├── routes/           # API route modules (user, admin, doctor, reception, …)
+│   │   ├── controllers/      # Business logic (lifecycle, payments, consultations)
+│   │   ├── models/           # DB models + hospital appointment policies
+│   │   ├── services/         # Lifecycle, trust score, refunds, QR scan, Agora, queue
 │   │   ├── middleware/       # JWT auth (user/admin/doctor/dean)
 │   │   └── config/           # DB, settings
-│   ├── scripts/              # Maintenance scripts
+│   ├── scripts/              # run_migrations.py, maintenance scripts
 │   └── scratch/              # DB migration/debug utilities
 │
 ├── scratch/                  # Root PPT generation, screenshots
@@ -283,8 +292,11 @@ PMS FNL 2/
 cd fastapi_back
 pip install -r requirements.txt
 # Configure fastapi_back/.env (see Environment Configuration)
+python scripts/run_migrations.py   # Apply pending DB migrations
 python -m uvicorn main:app --host 0.0.0.0 --port 5000 --reload
 ```
+
+Migrations also run automatically on API startup when PostgreSQL is connected. See [fastapi_back/migrations/README.md](fastapi_back/migrations/README.md).
 
 - API docs: `http://localhost:5000/docs`
 - Integrations check: `GET /api/config/integrations`
@@ -362,6 +374,9 @@ See **[flutter_mobile/README.md](flutter_mobile/README.md)** for complete setup.
 | `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `OPENAI_API_KEY` | AI medical chat |
 | `FRONTEND_URL`, `BACKEND_URL` | URL references |
 | `PLATFORM_FEE_PERCENTAGE`, `GST_PERCENTAGE` | Fee calculation |
+| `APPOINTMENT_LIFECYCLE_ENFORCED` | Enforce single-active booking, lifecycle transitions (default `true`) |
+| `TRUST_SCORE_ENFORCED` | Patient trust score booking restrictions (default `true`) |
+| `AUTO_NO_SHOW_JOB` | Background no-show processor (default `false`) |
 
 ### `frontend/.env`
 
@@ -447,12 +462,13 @@ Base URL: `http://localhost:5000` (or your LAN IP)
 
 | Prefix | Purpose |
 |--------|---------|
-| `/api/user` | Patient register/login, social-login, profile, appointments, Razorpay, health records, queue, emergency contacts, video consult |
+| `/api/user` | Patient register/login, social-login, profile, appointments, lifecycle, Razorpay, health records, queue, video consult |
 | `/api/auth` | Forgot/verify/reset password (role-aware) |
-| `/api/admin` | Super admin login, dashboard, doctors/deans/users CRUD, revenue, export |
+| `/api/admin` | Super admin login, dashboard, doctors/deans/admins/users CRUD, revenue, refunds, hospital policies, export |
 | `/api/dean` | Dean login, hospital-scoped dashboard, doctors, appointments, patients |
 | `/api/doctor` | Doctor login, appointments, queue, consultations, Agora tokens, slots |
-| `/api/appointments` | Appointment lookup by booking ID |
+| `/api/reception` | QR scan check-in, grace reschedule approve/reject (dean/admin) |
+| `/api/appointments` | Public appointment lookup by booking ID (`BK…`) |
 | `/api/payments` | Razorpay order/create/verify, history, checkout |
 | `/api/health-records` | Upload, list, delete patient records |
 | `/api/hospital-tieup` | Hospital list, public, nearby, CRUD |
@@ -465,6 +481,19 @@ Base URL: `http://localhost:5000` (or your LAN IP)
 | `/api/job-applications` | Career applications |
 | `/api/charts` | Admin/dean/doctor chart data |
 | `/api/otp` | Send/verify OTP |
+
+### Patient lifecycle endpoints (selected)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `GET` | `/api/user/booking-constraints` | Trust score, advance-payment requirement |
+| `GET` | `/api/user/appointments/{id}/lifecycle` | Visit count, validity, follow-up eligibility |
+| `GET` | `/api/user/appointments/{id}/consultation-summary` | Prescription, notes, advice after completion |
+| `POST` | `/api/user/appointments/{id}/grace-reschedule` | Request next-day visit (paid miss) |
+| `POST` | `/api/user/appointments/{id}/followup-visit` | Use follow-up visit (no new payment) |
+| `POST` | `/api/reception/scan` | Reception QR check-in (dean token) |
+| `GET` | `/api/admin/refunds/pending` | Refund queue |
+| `PUT` | `/api/admin/hospitals/{id}/appointment-policy` | Validity days, max visits, slot capacity |
 
 ### Auth Tokens
 
@@ -506,6 +535,63 @@ Headers: `Authorization: Bearer <token>` and `token: <token>`
 
 ---
 
+## Appointment Lifecycle & Public IDs
+
+MEDCLUES uses **backward-compatible** PostgreSQL migrations. Numeric primary keys are unchanged; human-readable **public IDs** and a formal **appointment lifecycle** sit on top.
+
+### Public ID formats
+
+| Entity | Format | Example |
+|--------|--------|---------|
+| Patient | `PAT` + 8 digits | `PAT00000006` |
+| Doctor | `DOC` + 8 digits | `DOC00000012` |
+| Dean | `DEA` + 8 digits | `DEA00000001` |
+| Admin | `ADM` + 8 digits | `ADM00000001` |
+| Appointment | `APT` + year + seq | `APT2026…` |
+| Payment | `PAY` + year + seq | `PAY2026…` |
+| Health record | `REC` + year + seq | `REC2026…` |
+| Booking QR | `BK` + 6 chars | `BK8X4P2` |
+
+Runbook: [fastapi_back/migrations/PUBLIC_IDS_RUNBOOK.md](fastapi_back/migrations/PUBLIC_IDS_RUNBOOK.md)
+
+### Lifecycle states
+
+`BOOKED` → `CONFIRMED` → `CHECKED_IN` → `IN_PROGRESS` → `COMPLETED` → `FOLLOWUP_AVAILABLE` → `CLOSED`
+
+Also: `CANCELLED`, `NO_SHOW`, `RESCHEDULED_ONCE`, `EXPIRED`, `REFUND_PENDING`, `REFUNDED`, `FOLLOWUP_EXPIRED`
+
+Legacy `status` values (`pending`, `completed`, `cancelled`, `in-consult`) remain for older clients.
+
+### Enforced policies (backend)
+
+| Policy | Behavior |
+|--------|----------|
+| **Single active appointment** | Patient cannot book while `BOOKED` / `CONFIRMED` / `IN_PROGRESS` / `FOLLOWUP_AVAILABLE`; admin override available |
+| **Slot capacity** | OPD and video slots respect per-hospital capacity (row locking + count validation) |
+| **Visit validity** | `validity_days`, `max_visits` per hospital; QR scan increments `visit_count` |
+| **Refunds** | First cancellation: 100% refund; later: platform fee deducted; 3–4 working days |
+| **Paid no-show** | One grace reschedule (`RESCHEDULED_ONCE`); second miss → `EXPIRED` |
+| **Follow-up** | After `COMPLETED`, configurable `followup_days` / `followup_visits` per hospital |
+| **Trust score** | Default 100; no-shows, late cancels, and refunds adjust score; low scores require advance payment or admin review |
+
+### Database migrations
+
+```bash
+cd fastapi_back
+python scripts/run_migrations.py
+```
+
+| Migration | Purpose |
+|-----------|---------|
+| `010`–`012` | Identity FK hardening and public ID prep |
+| `013_public_ids` | Public ID columns and backfill |
+| `014_appointment_lifecycle` | Lifecycle columns, hospital policies |
+| `015_appointment_lifecycle_extended` | Refunds, grace requests, trust score, visit log |
+
+Rollbacks live in `fastapi_back/migrations/rollbacks/`. Full list: [fastapi_back/migrations/README.md](fastapi_back/migrations/README.md).
+
+---
+
 ## Emergency Services
 
 Emergency is implemented at **three levels**:
@@ -538,7 +624,10 @@ Details: [flutter_mobile/README.md — Emergency Module](flutter_mobile/README.m
 | Path | Purpose |
 |------|---------|
 | `fastapi_back/start.ps1` | Quick backend start |
-| `fastapi_back/scripts/` | Schema sync, credential docs, image uploads |
+| `fastapi_back/scripts/run_migrations.py` | Apply pending SQL migrations |
+| `fastapi_back/migrations/` | Numbered schema migrations + rollbacks |
+| `fastapi_back/migrations/PUBLIC_IDS_RUNBOOK.md` | Public ID migration guide |
+| `fastapi_back/migrations/IDENTITY_PHASE1_RUNBOOK.md` | Identity FK phase-1 guide |
 | `fastapi_back/scratch/` | DB debug/migration/populate utilities |
 | `flutter_mobile/sync_env.ps1` | Sync API URL from Expo `.env` |
 | `flutter_mobile/run_chrome.ps1` | Sync env + run on Chrome |
@@ -557,6 +646,8 @@ Details: [flutter_mobile/README.md — Emergency Module](flutter_mobile/README.m
 - **Primary mobile:** Use `flutter_mobile/` for new patient mobile development
 - **API URL on devices:** Never use `localhost` on physical phones — use your PC's LAN IP
 - **Emergency testing mode:** `EmergencyConstants.testingMode = true` in Flutter blocks ambulance/police/fire calls
+- **Migrations:** Run `python scripts/run_migrations.py` after pulling backend changes
+- **Lifecycle flags:** Set `APPOINTMENT_LIFECYCLE_ENFORCED` and `TRUST_SCORE_ENFORCED` in `fastapi_back/.env`
 - **JWT expiry:** ~7 days; no separate refresh endpoint — re-login on 401
 - **Hot reload:** Flutter `r`/`R`; Vite HMR for web clients
 

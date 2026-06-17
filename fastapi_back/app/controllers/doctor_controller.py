@@ -162,27 +162,15 @@ async def appointment_cancel(doc_id: int, appointment_id: int, reason: Optional[
         return {"success": False, "message": str(e)}
 
 # API to mark appointment completed
-async def appointment_complete(doc_id: int, appointment_id: int):
+async def appointment_complete(doc_id: int, appointment_id: int, body: dict | None = None):
     try:
-        appointment = await appointment_model.get_appointment_by_id(appointment_id)
-        if not appointment or appointment['doctor_id'] != doc_id:
-            return {"success": False, "message": 'Appointment not found'}
+        from app.controllers import lifecycle_controller
 
-        # In Python we can just update status directly or use a queue service if implemented
-        await appointment_model.update_appointment(appointment_id, {"status": "completed", "isCompleted": True})
-        try:
-            from app.services import doctor_slot_service
-            await doctor_slot_service.complete_slot_for_appointment(appointment)
-        except Exception as slot_err:
-            print(f"[WARNING] Slot complete: {slot_err}")
-        
-        # Update doctor status
-        doctor = await doctor_model.get_doctor_by_id(doc_id)
-        if doctor.get('current_appointment_id') == appointment_id:
-            await db.execute('UPDATE doctors SET status = $1, current_appointment_id = NULL WHERE id = $2', 'in-clinic', doc_id)
-
-        # Send completion email (optional logic)
-        return {"success": True, "message": 'Appointment Completed'}
+        return await lifecycle_controller.complete_consultation(
+            doc_id,
+            int(appointment_id),
+            body or {},
+        )
     except Exception as e:
         return {"success": False, "message": str(e)}
 

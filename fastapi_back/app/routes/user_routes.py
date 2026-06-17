@@ -143,6 +143,50 @@ async def cancel_appointment(req: Request, user_id: int = Depends(auth_user)):
     body = await req.json()
     return await user_controller.cancel_appointment(user_id, body.get('appointmentId'))
 
+
+@router.get("/appointments/{appointmentId}/lifecycle")
+async def appointment_lifecycle(appointmentId: int, user_id: int = Depends(auth_user)):
+    from app.controllers import lifecycle_controller
+    return await lifecycle_controller.get_lifecycle(appointmentId, user_id)
+
+
+@router.get("/appointments/{appointmentId}/consultation-summary")
+async def consultation_summary(appointmentId: int, user_id: int = Depends(auth_user)):
+    from app.controllers import lifecycle_controller
+    return await lifecycle_controller.get_consultation_summary(appointmentId, user_id)
+
+
+@router.post("/appointments/{appointmentId}/grace-reschedule")
+async def grace_reschedule(appointmentId: int, req: Request, user_id: int = Depends(auth_user)):
+    from app.controllers import lifecycle_controller
+    body = await req.json()
+    return await lifecycle_controller.request_grace_reschedule(
+        user_id, appointmentId, body.get("requestedDate") or body.get("requested_date") or ""
+    )
+
+
+@router.post("/appointments/{appointmentId}/followup-visit")
+async def followup_visit(appointmentId: int, user_id: int = Depends(auth_user)):
+    from app.services import followup_service
+    try:
+        updated = await followup_service.use_followup_visit(appointmentId, user_id)
+        from app.services import appointment_lifecycle_service
+        return {
+            "success": True,
+            "appointment": appointment_lifecycle_service.lifecycle_payload(updated),
+        }
+    except Exception as exc:
+        from app.services.appointment_lifecycle_service import AppointmentPolicyError
+        if isinstance(exc, AppointmentPolicyError):
+            return {"success": False, "message": exc.message}
+        return {"success": False, "message": str(exc)}
+
+
+@router.get("/booking-constraints")
+async def booking_constraints(user_id: int = Depends(auth_user)):
+    from app.services import trust_score_service
+    return {"success": True, **await trust_score_service.booking_constraints(user_id)}
+
 @router.post("/payment-razorpay")
 async def payment_razorpay(req: Request, user_id: int = Depends(auth_user)):
     body = await req.json()

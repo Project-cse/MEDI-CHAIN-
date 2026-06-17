@@ -45,25 +45,31 @@ class AppointmentDetailScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text(e.toString())),
         data: (a) {
           final isUpcoming = a.isUpcoming;
+          final isCompleted = a.isCompleted;
           final statusLabel = a.cancelled
               ? l10n.appointmentsCancelled
               : a.isCompleted
                   ? l10n.appointmentsCompleted
-                  : l10n.appointmentsUpcoming;
+                  : (a.lifecycleStatus != null && a.lifecycleStatus!.isNotEmpty)
+                      ? a.lifecycleStatus!
+                      : l10n.appointmentsUpcoming;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: AppShadows.card,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: AppShadows.card,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -192,8 +198,14 @@ class AppointmentDetailScreen extends ConsumerWidget {
                     variant: AppButtonVariant.secondary,
                     onPressed: () => context.push('/booking/receipt/${a.id}'),
                   ),
+                    ],
+                  ),
+                ),
+                if (isCompleted) ...[
+                  const SizedBox(height: 16),
+                  _ConsultationSummarySection(appointmentId: appointmentId),
                 ],
-              ),
+              ],
             ),
           );
         },
@@ -224,6 +236,100 @@ class AppointmentDetailScreen extends ConsumerWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConsultationSummarySection extends ConsumerWidget {
+  const _ConsultationSummarySection({required this.appointmentId});
+
+  final String appointmentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref.watch(consultationSummaryProvider(appointmentId));
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: AppShadows.card,
+      ),
+      child: summary.when(
+        loading: () => const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+        error: (_, __) => Text(
+          'Could not load prescription. Pull to refresh or try again later.',
+          style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        data: (s) {
+          if (s == null || !s.hasContent) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Prescription',
+                  style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'No prescription added yet. Your doctor may update this after the consultation.',
+                  style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textSecondary),
+                ),
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Prescription & consultation notes',
+                style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              if (s.diagnosis != null && s.diagnosis!.trim().isNotEmpty)
+                _summaryBlock('Diagnosis', s.diagnosis!),
+              if (s.prescription != null && s.prescription!.trim().isNotEmpty)
+                _summaryBlock('Prescription', s.prescription!),
+              if (s.notes != null && s.notes!.trim().isNotEmpty) _summaryBlock('Notes', s.notes!),
+              if (s.advice != null && s.advice!.trim().isNotEmpty) _summaryBlock('Advice', s.advice!),
+              if (s.followupDate != null && s.followupDate!.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Follow-up: ${s.followupDate}',
+                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.logoTeal),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _summaryBlock(String title, String body) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.logoTeal),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            body,
+            style: GoogleFonts.poppins(fontSize: 14, height: 1.45, color: AppColors.textPrimary),
           ),
         ],
       ),

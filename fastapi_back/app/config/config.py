@@ -112,6 +112,11 @@ class Config:
     # Legacy email-only social login — default True until all clients send idToken
     SOCIAL_LOGIN_ALLOW_LEGACY = _env_bool("SOCIAL_LOGIN_ALLOW_LEGACY", default=True)
 
+    # Appointment Lifecycle
+    APPOINTMENT_LIFECYCLE_ENFORCED = _env_bool("APPOINTMENT_LIFECYCLE_ENFORCED", True)
+    TRUST_SCORE_ENFORCED = _env_bool("TRUST_SCORE_ENFORCED", True)
+    AUTO_NO_SHOW_JOB = _env_bool("AUTO_NO_SHOW_JOB", False)
+
     # Fees
     PLATFORM_FEE_PERCENTAGE = _env_float("PLATFORM_FEE_PERCENTAGE", 5)
     GST_PERCENTAGE = _env_float("GST_PERCENTAGE", 18)

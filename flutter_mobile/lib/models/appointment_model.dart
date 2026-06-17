@@ -21,6 +21,13 @@ class AppointmentModel {
   final int? queuePosition;
   final String? bookingId;
   final String? publicId;
+  final String? lifecycleStatus;
+  final int? visitCount;
+  final int? maxVisits;
+  final String? validUntil;
+  final int? followupVisitsUsed;
+  final int? followupVisitsMax;
+  final String? followupValidUntil;
 
   const AppointmentModel({
     required this.id,
@@ -45,6 +52,13 @@ class AppointmentModel {
     this.queuePosition,
     this.bookingId,
     this.publicId,
+    this.lifecycleStatus,
+    this.visitCount,
+    this.maxVisits,
+    this.validUntil,
+    this.followupVisitsUsed,
+    this.followupVisitsMax,
+    this.followupValidUntil,
   });
 
   factory AppointmentModel.fromJson(Map<String, dynamic> json) {
@@ -92,6 +106,21 @@ class AppointmentModel {
           : int.tryParse('${json['queuePosition'] ?? json['queue_position'] ?? ''}'),
       bookingId: (json['bookingId'] ?? json['booking_id'])?.toString(),
       publicId: (json['publicId'] ?? json['public_id'])?.toString(),
+      lifecycleStatus: (json['lifecycleStatus'] ?? json['lifecycle_status'])?.toString(),
+      visitCount: (json['visitCount'] ?? json['visit_count']) is num
+          ? ((json['visitCount'] ?? json['visit_count']) as num).toInt()
+          : int.tryParse('${json['visitCount'] ?? json['visit_count'] ?? ''}'),
+      maxVisits: (json['maxVisits'] ?? json['max_visits']) is num
+          ? ((json['maxVisits'] ?? json['max_visits']) as num).toInt()
+          : int.tryParse('${json['maxVisits'] ?? json['max_visits'] ?? ''}'),
+      validUntil: (json['validUntil'] ?? json['valid_until'])?.toString(),
+      followupVisitsUsed: (json['followupVisitsUsed'] ?? json['followup_visits_used']) is num
+          ? ((json['followupVisitsUsed'] ?? json['followup_visits_used']) as num).toInt()
+          : null,
+      followupVisitsMax: (json['followupVisitsMax'] ?? json['followup_visits_max']) is num
+          ? ((json['followupVisitsMax'] ?? json['followup_visits_max']) as num).toInt()
+          : null,
+      followupValidUntil: (json['followupValidUntil'] ?? json['followup_valid_until'])?.toString(),
     );
   }
 
@@ -99,7 +128,23 @@ class AppointmentModel {
       !cancelled &&
       !isCompleted &&
       status != 'cancelled' &&
-      status != 'completed';
+      status != 'completed' &&
+      !_terminalLifecycle;
+
+  bool get _terminalLifecycle {
+    final ls = (lifecycleStatus ?? '').toUpperCase();
+    return {
+      'CANCELLED',
+      'NO_SHOW',
+      'EXPIRED',
+      'REFUNDED',
+      'CLOSED',
+      'FOLLOWUP_EXPIRED',
+    }.contains(ls);
+  }
+
+  bool get followupEligible =>
+      (lifecycleStatus ?? '').toUpperCase() == 'FOLLOWUP_AVAILABLE';
 
   bool get isOnlineVisit {
     final v = (visitType ?? '').toLowerCase();
