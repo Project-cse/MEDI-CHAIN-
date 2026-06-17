@@ -22,7 +22,7 @@
 DEBUG=false
 JWT_SECRET=<64-char-random>
 DATABASE_URL=<neon-url>
-CORS_ALLOWED_ORIGINS=https://medclues.onrender.com,http://localhost:5173
+CORS_ALLOWED_ORIGINS=https://medclues.onrender.com,https://medclues-admin.vercel.app,http://localhost:5173
 GOOGLE_CLIENT_ID=<firebase-web-client-id>
 SOCIAL_LOGIN_ALLOW_LEGACY=true
 ```

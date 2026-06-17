@@ -3,7 +3,7 @@ import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.config.config import settings, validate_settings, cors_allowed_origins
+from app.config.config import settings, validate_settings, cors_allowed_origins, cors_origin_regex
 from app.utils.app_logger import get_logger
 
 log = get_logger("medclues.api")
@@ -177,14 +177,13 @@ _cors_common = {
 if settings.DEBUG:
     _cors_kwargs = {
         **_cors_common,
-        "allow_origin_regex": r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+        "allow_origin_regex": cors_origin_regex(),
     }
 else:
     _cors_kwargs = {
         **_cors_common,
         "allow_origins": cors_allowed_origins(),
-        # Flutter web dev (random localhost ports) against production API
-        "allow_origin_regex": r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+        "allow_origin_regex": cors_origin_regex(),
     }
 
 app.add_middleware(CORSMiddleware, **_cors_kwargs)

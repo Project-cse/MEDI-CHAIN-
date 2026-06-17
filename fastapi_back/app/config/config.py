@@ -102,9 +102,12 @@ class Config:
     # URLs
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
     BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:5000")
+    ADMIN_PANEL_URL = os.getenv("ADMIN_PANEL_URL", "").strip()
 
     # CORS — comma-separated allowlist for production
     CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    # Optional extra regex (e.g. Vercel preview URLs). Merged with built-in admin Vercel pattern.
+    CORS_ORIGIN_REGEX = os.getenv("CORS_ORIGIN_REGEX", "").strip()
 
     # OAuth / social login
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
@@ -201,7 +204,21 @@ def cors_allowed_origins() -> list[str]:
     ]
     if settings.FRONTEND_URL and settings.FRONTEND_URL not in extra:
         extra.append(settings.FRONTEND_URL.rstrip("/"))
+    if settings.ADMIN_PANEL_URL and settings.ADMIN_PANEL_URL not in extra:
+        extra.append(settings.ADMIN_PANEL_URL.rstrip("/"))
     if settings.BACKEND_URL and settings.BACKEND_URL not in extra:
         extra.append(settings.BACKEND_URL.rstrip("/"))
     merged = list(dict.fromkeys(extra + defaults))
     return merged
+
+
+def cors_origin_regex() -> str:
+    """Regex patterns for CORS (localhost dev + Vercel admin deployments)."""
+    parts = [
+        r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+        # Production + preview: medclues-admin.vercel.app, medclues-admin-*-projects.vercel.app
+        r"https://medclues-admin[a-z0-9-]*\.vercel\.app",
+    ]
+    if settings.CORS_ORIGIN_REGEX:
+        parts.append(settings.CORS_ORIGIN_REGEX)
+    return "|".join(f"(?:{p})" for p in parts)
