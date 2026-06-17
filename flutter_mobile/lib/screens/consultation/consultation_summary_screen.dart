@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +12,7 @@ import '../../routes/route_names.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_loader.dart';
 
-class ConsultationSummaryScreen extends ConsumerWidget {
+class ConsultationSummaryScreen extends ConsumerStatefulWidget {
   const ConsultationSummaryScreen({
     super.key,
     required this.appointmentId,
@@ -22,22 +24,64 @@ class ConsultationSummaryScreen extends ConsumerWidget {
   final int durationSeconds;
   final String? message;
 
+  @override
+  ConsumerState<ConsultationSummaryScreen> createState() => _ConsultationSummaryScreenState();
+}
+
+class _ConsultationSummaryScreenState extends ConsumerState<ConsultationSummaryScreen> {
+  Timer? _pollTimer;
+  int _pollCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshSummary();
+      _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+        if (_pollCount >= 10) {
+          _pollTimer?.cancel();
+          return;
+        }
+        _pollCount++;
+        _refreshSummary();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  void _refreshSummary() {
+    ref.invalidate(consultationSummaryProvider(widget.appointmentId));
+    ref.invalidate(appointmentDetailProvider(widget.appointmentId));
+  }
+
   String _durationLabel() {
-    final m = durationSeconds ~/ 60;
-    final s = durationSeconds % 60;
+    final m = widget.durationSeconds ~/ 60;
+    final s = widget.durationSeconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final appt = ref.watch(appointmentDetailProvider(appointmentId));
-    final summary = ref.watch(consultationSummaryProvider(appointmentId));
+    final appt = ref.watch(appointmentDetailProvider(widget.appointmentId));
+    final summary = ref.watch(consultationSummaryProvider(widget.appointmentId));
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Consultation summary', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshSummary,
+            tooltip: 'Refresh prescription',
+          ),
+        ],
       ),
       body: appt.when(
         loading: () => const AppLoader(),
@@ -59,7 +103,7 @@ class ConsultationSummaryScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  message ?? 'Your video consultation has ended.',
+                  widget.message ?? 'Your video consultation has ended.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(color: Colors.grey.shade600),
                 ),
@@ -92,7 +136,7 @@ class ConsultationSummaryScreen extends ConsumerWidget {
                       border: Border.all(color: Colors.amber.shade200),
                     ),
                     child: Text(
-                      'Your doctor may add prescription details shortly. Check this appointment again in a few minutes.',
+                      'Waiting for your doctor to send the prescription… This page refreshes automatically.',
                       style: GoogleFonts.poppins(fontSize: 13, color: Colors.amber.shade900),
                     ),
                   ),
@@ -101,7 +145,7 @@ class ConsultationSummaryScreen extends ConsumerWidget {
                 AppButton(
                   label: 'View appointment',
                   variant: AppButtonVariant.secondary,
-                  onPressed: () => context.push('/appointment-detail/$appointmentId'),
+                  onPressed: () => context.push('/appointment-detail/${widget.appointmentId}'),
                 ),
                 const SizedBox(height: 12),
                 AppButton(

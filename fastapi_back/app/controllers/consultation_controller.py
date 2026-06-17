@@ -428,7 +428,7 @@ async def end_video_call_for_doctor(doctor_id: int, appointment_id: int, req_bod
     req_body = req_body or {}
     from app.controllers import call_session_controller, lifecycle_controller
     await call_session_controller.mark_completed(int(appointment_id))
-    return await lifecycle_controller.complete_consultation(
+    result = await lifecycle_controller.complete_consultation(
         doctor_id,
         int(appointment_id),
         {
@@ -440,6 +440,9 @@ async def end_video_call_for_doctor(doctor_id: int, appointment_id: int, req_bod
             'attachments': req_body.get('attachments') or [],
         },
     )
+    if result.get('success'):
+        result['ended'] = True
+    return result
 
 
 async def get_video_call_status_for_user(user_id: int, appointment_id: int):
@@ -488,9 +491,14 @@ async def end_consultation(consultation_id: int, req_body: dict):
             "status": 'completed',
             "endedAt": ended_at,
             "duration": duration,
-            "prescription": prescription,
-            "notes": notes,
-            "prescriptionFile": prescription_file
+            **({
+                k: v for k, v in {
+                    "prescription": prescription,
+                    "notes": notes,
+                    "prescriptionFile": prescription_file,
+                }.items()
+                if v is not None and (not isinstance(v, str) or v.strip())
+            }),
         })
         
         # Reset doctor status

@@ -162,27 +162,40 @@ const DoctorVideoConsultRoom = ({
     } catch (_) {}
   }
 
-  const handleCallEnded = async (message, { notifyServer = false } = {}) => {
+  const persistConsultationToServer = async () => {
+    try {
+      const { data } = await axios.post(
+        `${backendUrl}/api/doctor/appointments/${appointmentId}/end-video-call`,
+        {
+          consultationId,
+          prescription,
+          notes: consultNotes,
+          diagnosis,
+          advice,
+          followupDate: followupDate || undefined,
+        },
+        { headers: { dToken: authToken } }
+      )
+      if (data?.success) {
+        toast.success(data.message || 'Prescription saved for patient')
+        return true
+      }
+      toast.error(data?.message || 'Could not save prescription for patient')
+      return false
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Could not save prescription for patient')
+      return false
+    }
+  }
+
+  const handleCallEnded = async (message, { notifyServer = true } = {}) => {
     if (callEndedRef.current) return
     callEndedRef.current = true
     setCallEndedMessage(message)
     setCallActive(false)
 
     if (notifyServer) {
-      try {
-        await axios.post(
-          `${backendUrl}/api/doctor/appointments/${appointmentId}/end-video-call`,
-          {
-            consultationId,
-            prescription,
-            notes: consultNotes,
-            diagnosis,
-            advice,
-            followupDate: followupDate || undefined,
-          },
-          { headers: { dToken: authToken } }
-        )
-      } catch (_) {}
+      await persistConsultationToServer()
     }
 
     const client = clientRef.current
@@ -280,7 +293,7 @@ const DoctorVideoConsultRoom = ({
           remoteUsersRef.current.delete(user.uid)
           syncRemoteJoined()
           if (hadRemoteRef.current) {
-            handleCallEnded('The call was ended.')
+            handleCallEnded('The call was ended.', { notifyServer: true })
           }
         })
 
@@ -377,7 +390,7 @@ const DoctorVideoConsultRoom = ({
           { headers: { dToken: authToken } }
         )
         if (data?.ended && callActive) {
-          handleCallEnded('The call was ended.')
+          handleCallEnded('The call was ended.', { notifyServer: true })
           return
         }
         if (!callStartedAtMs && remoteJoined) {

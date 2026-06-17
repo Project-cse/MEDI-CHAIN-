@@ -15,6 +15,13 @@ from app.services import (
 from app.services.appointment_lifecycle_service import AppointmentPolicyError
 
 
+def _clean_text(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 async def get_lifecycle(appointment_id: int, user_id: Optional[int] = None) -> dict:
     appointment = await appointment_model.get_appointment_by_id(int(appointment_id))
     if not appointment:
@@ -197,6 +204,13 @@ async def complete_consultation(
         )
 
     if consultation:
+        diagnosis = _clean_text(body.get("diagnosis"))
+        advice = _clean_text(body.get("advice"))
+        notes = _clean_text(body.get("notes"))
+        prescription = _clean_text(body.get("prescription"))
+        followup = body.get("followupDate") or body.get("followup_date")
+        followup = _clean_text(followup) if followup else None
+
         await db.execute(
             """
             UPDATE consultations SET
@@ -204,28 +218,50 @@ async def complete_consultation(
                 advice = COALESCE($3, advice),
                 notes = COALESCE($4, notes),
                 prescription = COALESCE($5, prescription),
-                followup_date = COALESCE($6, followup_date),
+                followup_date = COALESCE($6::date, followup_date),
                 attachments = COALESCE($7::jsonb, attachments),
                 status = 'completed',
-                ended_at = NOW(),
+                ended_at = COALESCE(ended_at, NOW()),
                 updated_at = NOW()
             WHERE id = $1
             """,
             int(consultation["id"]),
-            body.get("diagnosis"),
-            body.get("advice"),
-            body.get("notes"),
-            body.get("prescription"),
-            body.get("followupDate") or body.get("followup_date"),
+            diagnosis,
+            advice,
+            notes,
+            prescription,
+            followup,
             json.dumps(body.get("attachments") or []),
         )
 
-    await appointment_lifecycle_service.transition(
-        int(appointment_id),
-        "COMPLETED",
-        actor_id=doctor_id,
-        actor_role="doctor",
-    )
+    try:
+        await appointment_lifecycle_service.transition(
+            int(appointment_id),
+            "COMPLETED",
+            actor_id=doctor_id,
+            actor_role="doctor",
+        )
+    except Exception as exc:
+        # Prescription is saved above — still mark legacy completed if lifecycle blocks.
+        try:
+            await db.execute(
+                """
+                UPDATE appointments SET
+                    is_completed = true,
+                    status = 'completed',
+                    completed_at = COALESCE(completed_at, NOW()),
+                    lifecycle_status = COALESCE(NULLIF(lifecycle_status, ''), 'COMPLETED'),
+                    updated_at = NOW()
+                WHERE id = $1
+                """,
+                int(appointment_id),
+            )
+        except Exception:
+            pass
+        if isinstance(exc, AppointmentPolicyError):
+            pass
+        else:
+            raise
     try:
         from app.services import doctor_slot_service
         await doctor_slot_service.complete_slot_for_appointment(appointment)
