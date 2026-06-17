@@ -42,7 +42,7 @@ const DeanDoctors = () => {
     )
 
     return (
-        <div className='w-full bg-gradient-to-br from-gray-50 to-white p-4 sm:p-6 min-h-screen'>
+        <div className='w-full bg-gradient-to-br from-gray-50 to-white p-4 sm:p-6 mobile-safe-area pb-6 min-h-full'>
             <div className='space-y-4'>
                 {/* Header */}
                 <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>

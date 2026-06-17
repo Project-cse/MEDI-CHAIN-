@@ -34,10 +34,29 @@ const Sidebar = () => {
   return (
     <div className={`
       fixed lg:static inset-y-0 left-0 z-30
-      transition-all duration-300 transform
+      transition-transform duration-300 ease-out
       ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      w-64 lg:w-auto bg-mc-surface border-r border-mc-border min-h-screen text-mc-text
+      w-[min(280px,88vw)] lg:w-auto
+      bg-mc-surface border-r border-mc-border
+      h-full max-h-[100dvh] lg:min-h-screen
+      flex flex-col overflow-hidden
+      pt-[env(safe-area-inset-top)]
     `}>
+      <div className='lg:hidden flex items-center justify-between px-4 py-3 border-b border-mc-border shrink-0'>
+        <p className='text-sm font-bold text-mc-text'>Menu</p>
+        <button
+          type='button'
+          onClick={() => setSidebarOpen(false)}
+          className='p-2 rounded-lg hover:bg-mc-surface-elevated'
+          aria-label='Close menu'
+        >
+          <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
+          </svg>
+        </button>
+      </div>
+
+      <div className='flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pb-[max(1.5rem,env(safe-area-inset-bottom))]'>
       {/* ── Admin Menu — (Super System Controller) ────────────────────────── */}
       {
         aToken && <ul className='text-[#515151] mt-5'>
@@ -225,6 +244,7 @@ const Sidebar = () => {
           </li>
         </ul>
       }
+      </div>
     </div>
   )
 }

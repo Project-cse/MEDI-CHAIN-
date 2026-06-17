@@ -17,6 +17,11 @@ const DoctorForgotPassword = () => {
   const navigate = useNavigate()
   const backendUrl = import.meta.env.VITE_BACKEND_URL
 
+  useEffect(() => {
+    document.body.classList.add('login-route-active')
+    return () => document.body.classList.remove('login-route-active')
+  }, [])
+
   // Countdown timer for OTP expiry
   useEffect(() => {
     if (countdown > 0) {
@@ -175,9 +180,9 @@ const DoctorForgotPassword = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 overflow-hidden" style={{ background: 'linear-gradient(135deg, #E8F4FC 0%, #F0F8FF 50%, #E0F0FA 100%)' }}>
+    <div className="min-h-[100dvh] flex items-center justify-center p-4 sm:p-6 overflow-y-auto safe-area-inset" style={{ background: 'linear-gradient(135deg, #E8F4FC 0%, #F0F8FF 50%, #E0F0FA 100%)' }}>
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-5 sm:p-8">
           {/* Header */}
           <div className="text-center mb-8">
             <div className="mx-auto mb-4 w-16 h-16 flex items-center justify-center bg-blue-100 rounded-full">
@@ -221,17 +226,18 @@ const DoctorForgotPassword = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-4 text-center">
                   Enter the 6-digit OTP sent to your email
                 </label>
-                <div className="flex justify-center gap-2">
+                <div className="flex justify-center gap-1.5 sm:gap-2 flex-wrap">
                   {otp.map((digit, index) => (
                     <input
                       key={index}
                       id={`otp-${index}`}
                       type="text"
+                      inputMode="numeric"
                       maxLength={1}
                       value={digit}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                      className="w-12 h-12 text-center text-xl font-bold border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      className="w-10 h-10 sm:w-12 sm:h-12 text-center text-lg sm:text-xl font-bold border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                       disabled={isLoading}
                     />
                   ))}

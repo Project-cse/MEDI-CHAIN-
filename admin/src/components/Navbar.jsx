@@ -128,11 +128,11 @@ const Navbar = () => {
         </div>
       </div>
 
-      <div className='flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs text-mc-text-muted'>
+      <div className='flex items-center gap-1.5 sm:gap-3 min-w-0 max-w-[45vw] sm:max-w-none justify-end'>
         <button
-          type="button"
+          type='button'
           onClick={toggleDarkMode}
-          className='p-2 rounded-lg border border-mc-border bg-mc-surface-elevated hover:bg-mc-surface transition-colors'
+          className='p-2 rounded-lg border border-mc-border bg-mc-surface-elevated hover:bg-mc-surface transition-colors shrink-0'
           aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           title={darkMode ? 'Light mode' : 'Dark mode'}
         >
@@ -142,8 +142,8 @@ const Navbar = () => {
             <svg className='w-5 h-5 text-slate-600' fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
           )}
         </button>
-        <span className='hidden sm:inline'>Welcome back,</span>
-        <span className='font-semibold text-mc-text'>{adminName}</span>
+        <span className='hidden md:inline text-[11px] sm:text-xs text-mc-text-muted'>Welcome back,</span>
+        <span className='font-semibold text-mc-text text-xs sm:text-sm truncate'>{adminName}</span>
       </div>
     </div>
   )

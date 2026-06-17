@@ -87,7 +87,7 @@ const ManageDeans = () => {
   }
 
   return (
-    <div className='w-full bg-gradient-to-br from-gray-50 via-white to-emerald-50/20 p-4 sm:p-6 min-h-screen'>
+    <div className='w-full bg-gradient-to-br from-gray-50 via-white to-emerald-50/20 p-4 sm:p-6 mobile-safe-area pb-6 min-h-full'>
       <div className='max-w-6xl mx-auto space-y-5'>
 
         {/* Page Header */}

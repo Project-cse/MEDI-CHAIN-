@@ -22,7 +22,7 @@ const SystemSettings = () => {
     }
 
     return (
-        <div className='w-full bg-gradient-to-br from-indigo-50 via-white to-purple-50/30 p-4 sm:p-6 min-h-screen'>
+        <div className='w-full bg-gradient-to-br from-indigo-50 via-white to-purple-50/30 p-4 sm:p-6 mobile-safe-area pb-6 min-h-full'>
             <div className='max-w-4xl mx-auto space-y-6'>
                 <div className='mb-8'>
                     <h2 className='text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-500 bg-clip-text text-transparent'>System Configuration</h2>

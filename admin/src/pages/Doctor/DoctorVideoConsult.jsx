@@ -29,7 +29,7 @@ const DoctorVideoConsult = () => {
   }
 
   return (
-    <div className="w-full p-3 sm:p-4 lg:p-5 animate-fade-in-up bg-slate-50 min-h-screen">
+    <div className="w-full p-3 sm:p-4 lg:p-5 animate-fade-in-up bg-slate-50 mobile-safe-area pb-6 min-h-full">
       <DoctorVideoConsultRoom
         appointmentId={appointmentId}
         authToken={dToken}

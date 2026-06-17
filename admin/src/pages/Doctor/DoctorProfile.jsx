@@ -100,7 +100,7 @@ const DoctorProfile = () => {
     }
 
     return profileData && (
-        <div className='w-full bg-gray-50 min-h-screen p-4 sm:p-6 lg:p-8'>
+        <div className='w-full bg-gray-50 mobile-safe-area pb-6 min-h-full p-4 sm:p-6 lg:p-8'>
             <div className='max-w-6xl mx-auto'>
                 <div className='flex flex-col lg:flex-row gap-6 lg:gap-8'>
                     {/* Left Side - Profile Card */}

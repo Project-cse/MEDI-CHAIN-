@@ -53,7 +53,7 @@ const ManageUsers = () => {
     )
 
     return (
-        <div className='w-full bg-gradient-to-br from-indigo-50 via-white to-purple-50/30 p-4 sm:p-6 min-h-screen'>
+        <div className='w-full bg-gradient-to-br from-indigo-50 via-white to-purple-50/30 p-4 sm:p-6 mobile-safe-area pb-6 min-h-full'>
             <div className='max-w-6xl mx-auto space-y-6'>
                 <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
                     <div>

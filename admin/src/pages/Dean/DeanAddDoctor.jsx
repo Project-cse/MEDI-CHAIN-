@@ -67,7 +67,7 @@ const DeanAddDoctor = () => {
     }
 
     return (
-        <div className='w-full bg-gradient-to-br from-gray-50 via-white to-emerald-50/30 p-4 sm:p-6 min-h-screen'>
+        <div className='w-full bg-gradient-to-br from-gray-50 via-white to-emerald-50/30 p-4 sm:p-6 mobile-safe-area pb-6 min-h-full'>
             <div className='max-w-4xl mx-auto'>
                 <div className='mb-6'>
                     <h2 className='text-2xl font-bold text-gray-900 flex items-center gap-3'>

@@ -54,7 +54,7 @@ const DeanDashboard = () => {
   }
 
   return (
-    <div className='w-full bg-gradient-to-br from-gray-50 via-white to-emerald-50/30 p-4 sm:p-6 min-h-screen'>
+    <div className='w-full bg-gradient-to-br from-gray-50 via-white to-emerald-50/30 p-4 sm:p-6 mobile-safe-area pb-6 min-h-full'>
       <div className='space-y-4 animate-fade-in-up'>
 
         {/* Hospital Banner */}

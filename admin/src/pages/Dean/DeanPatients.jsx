@@ -40,7 +40,7 @@ const DeanPatients = () => {
     )
 
     return (
-        <div className='w-full bg-gradient-to-br from-gray-50 via-white to-emerald-50/30 p-4 sm:p-6 min-h-screen'>
+        <div className='w-full bg-gradient-to-br from-gray-50 via-white to-emerald-50/30 p-4 sm:p-6 mobile-safe-area pb-6 min-h-full'>
             <div className='max-w-6xl mx-auto space-y-6'>
                 <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
                     <div>
@@ -71,8 +71,8 @@ const DeanPatients = () => {
                             <p>No patients found.</p>
                         </div>
                     ) : (
-                        <div className='overflow-x-auto'>
-                            <table className='w-full text-sm text-left'>
+                        <div className='responsive-table-wrap'>
+                            <table className='w-full text-sm text-left min-w-[640px]'>
                                 <thead className='bg-gray-50 text-gray-600 font-bold uppercase text-[10px] tracking-widest'>
                                     <tr>
                                         <th className='px-6 py-4'>Patient</th>

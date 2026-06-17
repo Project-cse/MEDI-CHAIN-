@@ -97,7 +97,7 @@ const ManageLabs = () => {
     }
 
     return (
-        <div className='w-full p-4 sm:p-6 lg:p-10 min-h-screen bg-white'>
+        <div className='w-full p-4 sm:p-6 lg:p-10 mobile-safe-area pb-6 min-h-full bg-white'>
             <div className='max-w-7xl mx-auto'>
                 {/* Header Section */}
                 <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10'>

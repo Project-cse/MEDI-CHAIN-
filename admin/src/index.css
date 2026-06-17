@@ -117,13 +117,50 @@ body {
 /* Ensure all page containers fit properly */
 .main-content-area>* {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
-/* Mobile: Full width containers with proper padding */
+/* Responsive data tables — horizontal scroll on small screens */
+.responsive-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1023px) {
+    .main-content-area {
+        padding-bottom: max(4.5rem, env(safe-area-inset-bottom));
+    }
+}
+
+/* Login page: allow body scroll when unauthenticated */
+body.login-route-active,
+body.login-route-active #root {
+    overflow: auto !important;
+    height: auto !important;
+    min-height: 100dvh;
+    position: static !important;
+}
+
 @media (max-width: 767px) {
-    .main-content-area>* {
-        padding-left: 16px;
-        padding-right: 16px;
+    .appointments-grid,
+    .admin-table-grid {
+        display: block !important;
+        min-width: 0 !important;
+    }
+
+    .page-header-row {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 0.75rem;
+    }
+
+    .page-header-row .page-header-actions {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
     }
 }
 
