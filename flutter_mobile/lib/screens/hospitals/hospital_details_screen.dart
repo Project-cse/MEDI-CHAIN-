@@ -79,6 +79,7 @@ class HospitalDetailsScreen extends ConsumerWidget {
                     hospitalName: h.name,
                     address: h.address,
                     phone: h.contact,
+                    mapsLink: h.mapsLink,
                   ),
                 ),
                 SliverToBoxAdapter(child: PremiumHospitalStatsRow(stats: stats)),

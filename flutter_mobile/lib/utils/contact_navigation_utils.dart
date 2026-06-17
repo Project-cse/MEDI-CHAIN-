@@ -18,7 +18,17 @@ class ContactNavigationUtils {
     String? address,
     String? hospitalName,
     String? location,
+    String? mapsLink,
   }) async {
+    final direct = (mapsLink ?? '').trim();
+    if (direct.isNotEmpty) {
+      final normalized = direct.startsWith('http') ? direct : 'https://$direct';
+      final uri = Uri.tryParse(normalized);
+      if (uri != null && await canLaunchUrl(uri)) {
+        return launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    }
+
     final parts = <String>[
       if (hospitalName != null && hospitalName.trim().isNotEmpty) hospitalName.trim(),
       if (location != null && location.trim().isNotEmpty) location.trim(),

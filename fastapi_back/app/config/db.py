@@ -14,11 +14,15 @@ class Database:
         last_error = None
         for attempt in range(1, retries + 1):
             try:
+                db_url = settings.DATABASE_URL or ""
+                is_neon = "neon.tech" in db_url or "neon.tech" in (settings.PG_HOST or "")
                 pool_kwargs = {
                     "min_size": 1,
                     "max_size": 10,
                     "timeout": 15,
                     "command_timeout": 30,
+                    # Neon/PgBouncer: prepared plans break after migrations (schema change).
+                    "statement_cache_size": 0 if is_neon else 100,
                 }
                 if settings.DATABASE_URL:
                     self.pool = await asyncpg.create_pool(

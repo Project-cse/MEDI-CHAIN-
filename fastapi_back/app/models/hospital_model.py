@@ -83,11 +83,11 @@ async def delete_hospital(hospital_id: int):
 # --- Hospital Tie-Up Model ---
 
 async def get_all_hospital_tieups():
-    sql = "SELECT * FROM hospital_tieups ORDER BY id ASC LIMIT 10"
+    sql = "SELECT * FROM hospital_tieups ORDER BY id ASC"
     return await db.fetch_all(sql)
 
 async def get_public_hospital_tieups():
-    sql = "SELECT * FROM hospital_tieups WHERE show_on_home = true ORDER BY id ASC LIMIT 10"
+    sql = "SELECT * FROM hospital_tieups WHERE show_on_home = true ORDER BY id ASC"
     return await db.fetch_all(sql)
 
 async def get_hospital_tieup_by_id(tieup_id: int):
@@ -95,12 +95,31 @@ async def get_hospital_tieup_by_id(tieup_id: int):
     sql = "SELECT * FROM hospital_tieups WHERE id = $1"
     return await db.fetch_one(sql, tieup_id)
 
+
+async def _sync_hospital_tieups_id_sequence():
+    """Keep hospital_tieups id sequence aligned after seed scripts with explicit ids."""
+    await db.execute(
+        """
+        SELECT setval(
+            pg_get_serial_sequence('hospital_tieups', 'id'),
+            COALESCE((SELECT MAX(id) FROM hospital_tieups), 1),
+            true
+        )
+        """
+    )
+
+
 async def create_hospital_tieup(data: dict):
+    await _sync_hospital_tieups_id_sequence()
     sql = """
-        INSERT INTO hospital_tieups (name, address, contact, specialization, type, show_on_home, latitude, longitude)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO hospital_tieups (
+            name, address, contact, specialization, type, show_on_home,
+            latitude, longitude, maps_link
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
     """
+    maps_link = (data.get('mapsLink') or data.get('maps_link') or '').strip() or None
     values = [
         data.get('name'),
         data.get('address'),
@@ -109,7 +128,8 @@ async def create_hospital_tieup(data: dict):
         data.get('type', 'General'),
         data.get('showOnHome', False),
         data.get('latitude'),
-        data.get('longitude')
+        data.get('longitude'),
+        maps_link,
     ]
     return await db.fetch_one(sql, *values)
 
@@ -127,13 +147,18 @@ async def update_hospital_tieup(tieup_id: int, data: dict):
         'type': 'type',
         'showOnHome': 'show_on_home',
         'latitude': 'latitude',
-        'longitude': 'longitude'
+        'longitude': 'longitude',
+        'mapsLink': 'maps_link',
+        'maps_link': 'maps_link',
     }
 
     for key, db_key in mapping.items():
         if key in data and data[key] is not None:
+            val = data[key]
+            if db_key == 'maps_link':
+                val = (val or '').strip() or None
             fields.append(f"{db_key} = ${param_count}")
-            values.append(data[key])
+            values.append(val)
             param_count += 1
 
     if not fields:

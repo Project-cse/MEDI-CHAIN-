@@ -25,6 +25,7 @@ def format_hospital(h):
         "hospitalName": h_dict.get('name'),
         "location": h_dict.get('address') if 'address' in h_dict else f"{h_dict.get('address_line1', '')} {h_dict.get('address_line2', '')}".strip(),
         "contact": h_dict.get('contact', "Not available"),
+        "mapsLink": (h_dict.get('maps_link') or '').strip() or None,
         "hospitalType": 'PARTNER' if h_dict.get('type') == 'General' else ('MAIN' if h_dict.get('type') == 'Main' else h_dict.get('type', 'GENERAL')),
         "type": h_dict.get('type', 'General'),
         "specialization": h_dict.get('specialization', 'General'),
@@ -147,6 +148,10 @@ async def update_hospital_tieup(tieup_id: int, data: dict):
             if geo_res.get('success'):
                 data['latitude'] = geo_res['coordinates']['lat']
                 data['longitude'] = geo_res['coordinates']['lon']
+
+        if 'mapsLink' in data or 'maps_link' in data:
+            raw = (data.get('mapsLink') or data.get('maps_link') or '').strip()
+            data['mapsLink'] = raw or None
 
         await hospital_model.update_hospital_tieup(tieup_id, data)
         return {"success": True, "message": "Hospital Tie-up Updated"}

@@ -58,6 +58,7 @@ const HospitalTieUps = () => {
     const [formData, setFormData] = useState({
         name: '',
         address: '',
+        mapsLink: '',
         contact: '',
         specialization: '',
         type: 'General',
@@ -106,6 +107,7 @@ const HospitalTieUps = () => {
         setFormData({
             name: hospital.name,
             address: hospital.address,
+            mapsLink: hospital.mapsLink || hospital.maps_link || '',
             contact: hospital.contact,
             specialization: hospital.specialization,
             type: hospital.type || 'General',
@@ -252,6 +254,7 @@ const HospitalTieUps = () => {
         setFormData({
             name: '',
             address: '',
+            mapsLink: '',
             contact: '',
             specialization: '',
             type: 'General',
@@ -558,6 +561,22 @@ const HospitalTieUps = () => {
                                         onChange={e => setFormData({ ...formData, address: e.target.value })}
                                         required
                                     />
+                                </div>
+
+                                <div className='flex flex-col gap-1.5'>
+                                    <label className='text-xs font-semibold text-gray-700'>
+                                        Google Maps Link
+                                    </label>
+                                    <input
+                                        type='url'
+                                        placeholder='https://maps.app.goo.gl/... or https://www.google.com/maps/place/...'
+                                        className='w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white'
+                                        value={formData.mapsLink}
+                                        onChange={e => setFormData({ ...formData, mapsLink: e.target.value })}
+                                    />
+                                    <p className='text-[11px] text-gray-500 leading-snug'>
+                                        Paste the share link from Google Maps. Patients use this for Navigate on the hospital page.
+                                    </p>
                                 </div>
 
                                 <div className='grid grid-cols-2 gap-3'>

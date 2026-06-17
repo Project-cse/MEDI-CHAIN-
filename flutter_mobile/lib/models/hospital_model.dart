@@ -7,6 +7,7 @@ class HospitalModel {
   final String? specialization;
   final String? type;
   final String? contact;
+  final String? mapsLink;
   final double? latitude;
   final double? longitude;
   final double? distanceKm;
@@ -25,6 +26,7 @@ class HospitalModel {
     this.specialization,
     this.type,
     this.contact,
+    this.mapsLink,
     this.latitude,
     this.longitude,
     this.distanceKm,
@@ -59,6 +61,7 @@ class HospitalModel {
       specialization: json['specialization']?.toString(),
       type: json['type']?.toString(),
       contact: json['contact']?.toString(),
+      mapsLink: (json['mapsLink'] ?? json['maps_link'])?.toString(),
       latitude: lat,
       longitude: lon,
       distanceKm: (json['distance'] is num) ? (json['distance'] as num).toDouble() : null,
@@ -90,6 +93,7 @@ class HospitalModel {
       specialization: specialization,
       type: type,
       contact: contact,
+      mapsLink: mapsLink,
       latitude: latitude,
       longitude: longitude,
       distanceKm: distanceKm ?? this.distanceKm,

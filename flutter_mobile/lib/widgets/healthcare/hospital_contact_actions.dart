@@ -12,11 +12,13 @@ class HospitalContactActions extends StatelessWidget {
     required this.hospitalName,
     required this.address,
     this.phone,
+    this.mapsLink,
   });
 
   final String hospitalName;
   final String address;
   final String? phone;
+  final String? mapsLink;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +40,7 @@ class HospitalContactActions extends StatelessWidget {
                 final ok = await ContactNavigationUtils.openHospitalNavigation(
                   hospitalName: hospitalName,
                   address: address,
+                  mapsLink: mapsLink,
                 );
                 if (!context.mounted) return;
                 if (!ok) AppSnackbar.show(context, 'Address not available');

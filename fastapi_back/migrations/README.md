@@ -28,6 +28,7 @@ Migrations also run automatically on API startup when PostgreSQL is connected.
 | `013_public_ids` | Human-readable public IDs (`PAT`, `DOC`, `APT`, …) |
 | `014_appointment_lifecycle` | Lifecycle status, hospital policies, visit validity |
 | `015_appointment_lifecycle_extended` | Refunds, grace requests, trust score, visit log |
+| `016_hospital_maps_link` | Google Maps share link on hospital tie-ups |
 
 ### Manual / validation (not auto-applied)
 
