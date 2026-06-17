@@ -267,8 +267,13 @@ async def update_profile(user_id: int, form_data: dict, image_file: Optional[Upl
             file_content = await image_file.read()
             if not file_content:
                 return {"success": False, "message": "Empty image file"}
+            user = await user_model.get_user_by_id(user_id)
+            from app.services.cloudinary_folders import patient_profile_folder
+
             upload_result = cloudinary.uploader.upload(
-                file_content, folder="user-profiles"
+                file_content,
+                folder=patient_profile_folder(user, user_id=user_id),
+                resource_type="image",
             )
             update_data["image"] = upload_result.get("secure_url")
 
@@ -614,9 +619,15 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
         prescription_data = None
         if prescription_file:
             try:
-                # Read file content to get size and upload properly
+                from app.services.cloudinary_folders import patient_reports_folder
+
+                user_row = await user_model.get_user_by_id(user_id)
                 file_content = await prescription_file.read()
-                upload_result = cloudinary.uploader.upload(file_content, folder="appointments/prescriptions")
+                upload_result = cloudinary.uploader.upload(
+                    file_content,
+                    folder=patient_reports_folder(user_row, user_id=user_id),
+                    resource_type="auto",
+                )
                 prescription_url = upload_result.get('secure_url')
                 
                 # Store data for health record creation

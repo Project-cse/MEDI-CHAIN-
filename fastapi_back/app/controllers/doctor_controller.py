@@ -259,8 +259,15 @@ async def update_doctor_profile(doc_id: int, form_data: dict, image=None):
         if image and image.filename:
             file_bytes = await image.read()
             import cloudinary.uploader, io
-            result = cloudinary.uploader.upload(io.BytesIO(file_bytes), folder="doctors/profiles", resource_type='image')
-            update_data['image'] = result.get('secure_url', '')
+            from app.services.cloudinary_folders import doctor_profile_folder
+
+            doctor_row = await doctor_model.get_doctor_by_id(doc_id)
+            result = cloudinary.uploader.upload(
+                io.BytesIO(file_bytes),
+                folder=doctor_profile_folder(doctor_row, doctor_id=doc_id),
+                resource_type="image",
+            )
+            update_data["image"] = result.get("secure_url", "")
 
         if not update_data:
             return {"success": False, "message": "No data to update"}

@@ -1,10 +1,9 @@
-import os
-import httpx
 import cloudinary.uploader
 from datetime import datetime
 from fastapi import UploadFile, File, Response
 from app.models import job_application_model
-from app.services import email_service # Re-using existing email service for interview/rejection
+from app.services import email_service
+from app.services.cloudinary_folders import job_applications_folder
 
 async def apply_for_job(data: dict, resume_file: UploadFile):
     try:
@@ -14,9 +13,9 @@ async def apply_for_job(data: dict, resume_file: UploadFile):
         
         upload_result = cloudinary.uploader.upload(
             file_content,
-            folder="job-applications",
-            resource_type="auto", # auto handles pdf, docx, etc.
-            public_id=f"{datetime.now().timestamp()}_{resume_file.filename.split('.')[0]}"
+            folder=job_applications_folder(),
+            resource_type="auto",
+            public_id=f"{datetime.now().timestamp()}_{resume_file.filename.split('.')[0]}",
         )
         
         image_url = upload_result.get('secure_url')

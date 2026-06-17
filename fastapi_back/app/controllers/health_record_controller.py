@@ -73,14 +73,18 @@ async def create_health_record(
 
         # Upload files to Cloudinary
         uploaded_files = []
+        user_row = await user_model.get_user_by_id(user_id)
+        from app.services.cloudinary_folders import patient_reports_folder
+
+        report_folder = patient_reports_folder(user_row, user_id=user_id)
         for file in files:
             try:
                 # Read file content for upload
                 file_content = await file.read()
-                
+
                 upload_result = cloudinary.uploader.upload(
                     file_content,
-                    folder=f"health-records/{user_id}",
+                    folder=report_folder,
                     resource_type="auto",
                     access_mode="public",
                 )

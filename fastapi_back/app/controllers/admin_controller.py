@@ -163,9 +163,6 @@ async def add_doctor(form_data: dict, image_file: Optional[UploadFile] = None):
         hashed_password = get_password_hash(password)
         
         image_url = f"https://ui-avatars.com/api/?name={name.replace(' ', '+')}&background=0ea5e9&color=ffffff"
-        if image_file:
-            upload_result = cloudinary.uploader.upload(image_file.file, folder="doctors/profiles")
-            image_url = upload_result.get('secure_url')
 
         doctor_data = {
             "name": name,
@@ -178,11 +175,24 @@ async def add_doctor(form_data: dict, image_file: Optional[UploadFile] = None):
             "about": about,
             "fees": float(fees),
             "address": json.loads(address) if isinstance(address, str) else address,
-            "date": int(time.time() * 1000)
+            "date": int(time.time() * 1000),
         }
 
-        await doctor_model.create_doctor(doctor_data)
-        return {"success": True, "message": 'Doctor Added'}
+        created = await doctor_model.create_doctor(doctor_data)
+        if image_file and created:
+            from app.services.cloudinary_folders import doctor_profile_folder
+
+            upload_result = cloudinary.uploader.upload(
+                image_file.file,
+                folder=doctor_profile_folder(created, doctor_id=created.get("id")),
+                resource_type="image",
+            )
+            image_url = upload_result.get("secure_url") or image_url
+            await doctor_model.update_doctor(created["id"], {"image": image_url})
+
+        if not created:
+            return {"success": False, "message": "Doctor could not be created"}
+        return {"success": True, "message": "Doctor Added"}
 
     except Exception as e:
         return {"success": False, "message": str(e)}
@@ -217,8 +227,15 @@ async def update_doctor(form_data: dict, image_file: Optional[UploadFile] = None
                 update_data['available'] = False
 
         if image_file:
-            upload_result = cloudinary.uploader.upload(image_file.file, folder="doctors/profiles")
-            update_data['image'] = upload_result.get('secure_url')
+            from app.services.cloudinary_folders import doctor_profile_folder
+
+            doctor_row = await doctor_model.get_doctor_by_id(doc_id)
+            upload_result = cloudinary.uploader.upload(
+                image_file.file,
+                folder=doctor_profile_folder(doctor_row, doctor_id=int(doc_id)),
+                resource_type="image",
+            )
+            update_data["image"] = upload_result.get("secure_url")
 
         await doctor_model.update_doctor(doc_id, update_data)
         try:
