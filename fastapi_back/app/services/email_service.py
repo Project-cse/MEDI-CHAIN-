@@ -90,7 +90,14 @@ async def send_appointment_confirmation(email: str, details: dict):
     patient_name = details.get("patientName", "Patient")
     hospital_name = details.get("hospitalName", "MEDCLUES Partner Hospital")
     subject = f"Appointment Confirmed — {hospital_name}"
-    view_url = details.get("viewUrl") or _app_login_url("/my-appointments")
+    from app.utils.mobile_links import appointment_email_link
+
+    appointment_id = details.get("appointmentId")
+    view_url = details.get("viewUrl")
+    if not view_url and appointment_id:
+        view_url = appointment_email_link(appointment_id)
+    if not view_url:
+        view_url = _app_login_url("/my-appointments")
     html_content = tpl.appointment_confirmed(details, view_url)
     return await send_email(email, subject, html_content, patient_name)
 

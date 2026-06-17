@@ -387,10 +387,8 @@ async def _resolve_booking_hospital_location(
     doc_data: dict,
     frontend_hospital_name: Optional[str] = None,
     frontend_location: Optional[str] = None,
-) -> tuple[str, str, str]:
-    """Return (hospital_name, full_address, maps_url) for booking notifications."""
-    import urllib.parse
-
+) -> tuple[str, str, Optional[float], Optional[float]]:
+    """Return (hospital_name, full_address, latitude, longitude)."""
     hospital_name = (
         (frontend_hospital_name or "").strip()
         or (doc_data.get("hospital_name") or "").strip()
@@ -446,18 +444,18 @@ async def _resolve_booking_hospital_location(
     if not full_address:
         full_address = hospital_name
 
+    lat_val: Optional[float] = None
+    lng_val: Optional[float] = None
     if hosp_lat is not None and hosp_lng is not None:
         try:
-            lat = float(hosp_lat)
-            lng = float(hosp_lng)
-            if lat != 0.0 or lng != 0.0:
-                return hospital_name, full_address, f"https://www.google.com/maps?q={lat},{lng}"
+            lat_val = float(hosp_lat)
+            lng_val = float(hosp_lng)
+            if lat_val == 0.0 and lng_val == 0.0:
+                lat_val = lng_val = None
         except (TypeError, ValueError):
-            pass
+            lat_val = lng_val = None
 
-    maps_query = urllib.parse.quote(f"{hospital_name}, {full_address}")
-    maps_url = f"https://www.google.com/maps/search/?api=1&query={maps_query}"
-    return hospital_name, full_address, maps_url
+    return hospital_name, full_address, lat_val, lng_val
 
 
 async def _send_booking_confirmation_email(
@@ -489,15 +487,21 @@ async def _send_booking_confirmation_email(
             "bookingId": booking_id or f"#APT{appointment_id}",
         }
 
-        hospital_name, hospital_location_str, maps_link = await _resolve_booking_hospital_location(
+        hospital_name, hospital_location_str, hosp_lat, hosp_lng = await _resolve_booking_hospital_location(
             doc_data,
             frontend_hospital_name=frontend_hospital_name,
             frontend_location=frontend_location,
         )
 
+        from app.utils.mobile_links import appointment_email_link, maps_email_link
+
         email_details["hospitalName"] = hospital_name
         email_details["hospitalLocation"] = hospital_location_str
-        email_details["mapsLink"] = maps_link
+        email_details["viewUrl"] = appointment_email_link(appointment_id)
+        email_details["appointmentId"] = appointment_id
+        email_details["mapsLink"] = maps_email_link(
+            hospital_name, hospital_location_str, hosp_lat, hosp_lng
+        )
 
         email_res = await email_service.send_appointment_confirmation(user_email, email_details)
         if not email_res.get('success'):
@@ -524,11 +528,15 @@ async def _send_booking_telegram_notification(
         from app.services import telegram_notify_service
 
         patient_name = actual_patient.get("name") if not actual_patient.get("isSelf") else user_name
-        hospital_name, hospital_location, maps_link = await _resolve_booking_hospital_location(
+        hospital_name, hospital_location, hosp_lat, hosp_lng = await _resolve_booking_hospital_location(
             doc_data,
             frontend_hospital_name=frontend_hospital_name,
             frontend_location=frontend_location,
         )
+
+        from app.utils.mobile_links import maps_geo_url
+
+        maps_url = maps_geo_url(hospital_name, hospital_location, hosp_lat, hosp_lng)
 
         await telegram_notify_service.notify_appointment_booked(
             user_id,
@@ -542,7 +550,7 @@ async def _send_booking_telegram_notification(
             hospital_location=hospital_location,
             appointment_id=int(appointment_id),
             appointment_public_id=appointment_public_id,
-            maps_url=maps_link,
+            maps_url=maps_url,
         )
     except Exception as tg_err:
         print(f"[WARNING] Telegram booking notify: {tg_err}")

@@ -18,6 +18,7 @@ from app.routes import (
     job_application_routes, otp_routes, specialty_routes,
     location_routes, dean_routes, super_appointment_routes,
     payments_routes, charts_routes, auth_routes, health_routes, reception_routes,
+    link_routes,
 )
 from app.middleware.request_logging import RequestLoggingMiddleware
 log.info("Routes imported.")
@@ -191,6 +192,7 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # Register Routers
 app.include_router(health_routes.router)
+app.include_router(link_routes.router)
 app.include_router(admin_routes.router)
 app.include_router(doctor_routes.router)
 app.include_router(user_routes.router)

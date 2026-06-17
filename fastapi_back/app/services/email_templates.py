@@ -248,8 +248,12 @@ def appointment_confirmed(details: dict, view_url: str) -> str:
     {_greeting(patient)}
     {_body_text("Your appointment has been booked successfully. Please find the details below.")}
     {_data_table([(l, v) for l, v in rows if v], "#ECFDF5")}
-    {_cta_button("View Appointment", view_url, BRAND_GREEN)}
+    {_cta_button("Open in MEDCLUES App", view_url, BRAND_GREEN)}
     {maps_cta}
+    <p style="margin:8px 0 0;font-size:12px;color:{TEXT_MUTED};text-align:center;line-height:1.5;">
+      On your phone, <strong>Open in MEDCLUES App</strong> opens this appointment.
+      <strong>View in Maps</strong> lets you choose Google Maps, Uber, Rapido, or similar.
+    </p>
     {_note_box("Please arrive 15 minutes early and carry a valid ID proof.", "#ECFDF5", BRAND_GREEN)}
     """
     return wrap_email(content)

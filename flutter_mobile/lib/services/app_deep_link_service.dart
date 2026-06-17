@@ -55,13 +55,16 @@ class AppDeepLinkService {
     if (scheme != 'mediclues' && scheme != 'medichain') return null;
 
     final host = uri.host.toLowerCase();
-    if (host == 'dashboard' || host == 'home') {
-      return RouteNames.dashboard;
-    }
+    final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
 
-    if (host == 'open') {
-      final segment = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
-      switch (segment) {
+    if (host == 'open' && segments.isNotEmpty) {
+      if (segments.first == 'appointments') {
+        if (segments.length >= 2) {
+          return '/appointments/${segments[1]}';
+        }
+        return RouteNames.appointments;
+      }
+      switch (segments.first) {
         case 'dashboard':
         case 'home':
           return RouteNames.dashboard;
@@ -78,6 +81,10 @@ class AppDeepLinkService {
         default:
           return RouteNames.dashboard;
       }
+    }
+
+    if (host == 'dashboard' || host == 'home') {
+      return RouteNames.dashboard;
     }
 
     return RouteNames.dashboard;
