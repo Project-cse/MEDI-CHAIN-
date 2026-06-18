@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx'
 import axios from 'axios'
 import PatientDetailsModal from '../../components/PatientDetailsModal'
 import EmailModal from '../../components/EmailModal'
+import { AdminPageLayout, PageHero, KpiCard, FilterToolbar } from '../../components/mc'
 
 const AllAppointments = () => {
   const { aToken, appointments, cancelAppointment, getAllAppointments, doctors: contextDoctors, getAllDoctors } = useContext(AdminContext)
@@ -298,21 +299,21 @@ const AllAppointments = () => {
   }
 
   return (
-    <div className='w-full bg-white p-4 sm:p-4 mobile-safe-area pb-6'>
-      <div className='space-y-3 sm:space-y-4 animate-fade-in-up'>
-        {/* Header with Stats */}
-        <GlassCard className="p-3 sm:p-4">
-          <div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3'>
-            <div className='flex-1 min-w-0'>
-              <h1 className='text-lg sm:text-xl font-bold text-gray-800'>All Appointments</h1>
-              <p className='text-[10px] sm:text-xs text-gray-500 mt-0.5'>Manage and view all patient appointments</p>
-            </div>
-            <div className='bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 sm:px-4 py-2 rounded-lg shadow-lg w-full sm:w-auto'>
-              <p className='text-[9px] sm:text-[10px] font-medium opacity-90'>Total Appointments</p>
-              <p className='text-xl sm:text-2xl font-bold'>{appointments.length}</p>
-            </div>
-          </div>
-        </GlassCard>
+    <AdminPageLayout>
+        <PageHero
+          title="Appointments"
+          subtitle="Manage and monitor appointments across all hospitals, departments and doctors."
+          features={['Real-time Scheduling', 'Centralized Control', 'Multi-Hospital View', 'Better Patient Flow']}
+        />
+
+        <div className="mc-kpi-grid mc-kpi-grid--5">
+          <KpiCard label="Total Appointments" value={appointments.length} iconBg="bg-sky-100 text-sky-600"
+            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+          />
+          <KpiCard label="Filtered Results" value={filteredAppointments.length} iconBg="bg-violet-100 text-violet-600"
+            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>}
+          />
+        </div>
 
         {/* Tabs: Today | All | Cancelled */}
         <div className='flex justify-center sm:justify-start'>
@@ -961,8 +962,7 @@ const AllAppointments = () => {
             aToken={aToken}
           />
         )}
-      </div>
-    </div>
+    </AdminPageLayout>
   )
 }
 

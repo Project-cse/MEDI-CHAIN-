@@ -218,13 +218,10 @@ async def update_doctor(form_data: dict, image_file: Optional[UploadFile] = None
             update_data['address'] = json.loads(addr) if isinstance(addr, str) else addr
 
         if 'status' in form_data:
-            st = form_data['status']
+            from app.utils.formatters import _normalize_doctor_status, _doctor_available_for_status
+            st = _normalize_doctor_status(form_data['status'])
             update_data['status'] = st
-            # Sync available field
-            if st in ('available', 'busy'):
-                update_data['available'] = True
-            elif st in ('unavailable', 'emergency'):
-                update_data['available'] = False
+            update_data['available'] = False if st == 'inactive' else _doctor_available_for_status(st)
 
         if image_file:
             from app.services.cloudinary_folders import doctor_profile_folder

@@ -26,6 +26,7 @@ def format_hospital(h):
         "location": h_dict.get('address') if 'address' in h_dict else f"{h_dict.get('address_line1', '')} {h_dict.get('address_line2', '')}".strip(),
         "contact": h_dict.get('contact', "Not available"),
         "mapsLink": (h_dict.get('maps_link') or '').strip() or None,
+        "backgroundImage": (h_dict.get('background_image') or '').strip() or None,
         "hospitalType": 'PARTNER' if h_dict.get('type') == 'General' else ('MAIN' if h_dict.get('type') == 'Main' else h_dict.get('type', 'GENERAL')),
         "type": h_dict.get('type', 'General'),
         "specialization": h_dict.get('specialization', 'General'),

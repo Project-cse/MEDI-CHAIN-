@@ -7,6 +7,7 @@ import { assets } from '../../assets/assets'
 import GlassCard from '../../components/ui/GlassCard'
 import { useSearchParams } from 'react-router-dom'
 import { formatPublicId, publicIdBadgeClass } from '../../utils/publicIdDisplay'
+import { AdminPageLayout, PageHero, KpiCard, FilterToolbar, McSearch } from '../../components/mc'
 
 const DoctorsList = () => {
 
@@ -146,46 +147,41 @@ const DoctorsList = () => {
     return matchesSearch && matchesAvailability && matchesSpeciality
   })
 
+  const totalDocs = doctors?.length || 0
+  const availableDocs = doctors?.filter((d) => d.available).length || 0
+  const onLeaveDocs = doctors?.filter((d) => !d.available).length || 0
+
   return (
     <>
-      <div className='w-full bg-gradient-to-br from-gray-50 via-white to-indigo-50/40 p-4 sm:p-6 mobile-safe-area pb-8 min-h-screen'>
-        {/* Header + Filters */}
-        <div className='max-w-7xl mx-auto'>
-          <div className='flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6'>
-            <div>
-              <h1 className='text-2xl sm:text-3xl font-bold text-gray-900 mb-1 flex items-center gap-3'>
-                <div className='bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl p-2 shadow-lg shadow-indigo-500/30'>
-                  <svg className='w-6 h-6 text-white' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-                <span className='bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent'>
-                  All Doctors
-                </span>
-              </h1>
-              <p className='text-xs sm:text-sm text-gray-500'>
-                Manage doctor availability, edit profiles, and quickly find doctors using search & filters.
-              </p>
-            </div>
+      <AdminPageLayout>
+          <PageHero
+            title="Doctors List"
+            subtitle="Global directory of doctors across all hospitals — manage availability, profiles, and assignments."
+            features={['Centralized Control', 'Real-time Updates', 'Better Outcomes']}
+          />
 
-            {/* Search input */}
-            <div className='w-full sm:w-72'>
-              <div className='relative'>
-                <span className='absolute inset-y-0 left-3 flex items-center text-gray-400'>
-                  <svg className='w-4 h-4' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
-                  </svg>
-                </span>
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search by name or speciality..."
-                  className='w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border-2 border-gray-200 bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all'
-                />
-              </div>
-            </div>
+          <div className="mc-kpi-grid mc-kpi-grid--4">
+            <KpiCard label="Total Doctors" value={totalDocs} iconBg="bg-sky-100 text-sky-600"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+            />
+            <KpiCard label="Active Today" value={availableDocs} iconBg="bg-emerald-100 text-emerald-600"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+            />
+            <KpiCard label="On Leave / Offline" value={onLeaveDocs} iconBg="bg-amber-100 text-amber-600"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+            />
+            <KpiCard label="Showing Results" value={filteredDoctors.length} iconBg="bg-violet-100 text-violet-600"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>}
+            />
           </div>
+
+          <FilterToolbar>
+            <McSearch
+              placeholder="Search by name, specialty or qualification..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </FilterToolbar>
 
           {/* Filters row */}
           <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6'>
@@ -301,8 +297,7 @@ const DoctorsList = () => {
               </div>
             ))}
           </div>
-        </div>
-      </div>
+      </AdminPageLayout>
 
       {/* Edit Doctor Modal */}
       {showEditModal && editingDoctor && (

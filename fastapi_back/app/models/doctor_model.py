@@ -121,13 +121,23 @@ async def _sync_doctors_id_sequence():
     )
 
 
+def _coerce_doctor_date_ms(raw) -> int:
+    """doctors.date is BIGINT (epoch ms), not a timestamp string."""
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        return int(raw)
+    if isinstance(raw, str) and raw.isdigit():
+        return int(raw)
+    return int(datetime.now().timestamp() * 1000)
+
+
 async def create_doctor(doctor_data: Dict[str, Any]):
     address = doctor_data.get('address', {})
     address_line1 = address.get('line1', '')
     address_line2 = address.get('line2', '')
     
-    # Use timezone-aware datetime if possible, or naive if the DB expects it
-    date_val = doctor_data.get('date', datetime.now().isoformat())
+    date_val = _coerce_doctor_date_ms(doctor_data.get('date'))
 
     await _sync_doctors_id_sequence()
 

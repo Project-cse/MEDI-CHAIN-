@@ -1,6 +1,6 @@
 import React, { useContext } from 'react'
 import { assets } from '../assets/assets'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { AdminContext } from '../context/AdminContext'
 import { DoctorContext } from '../context/DoctorContext'
 import { DeanContext } from '../context/DeanContext'
@@ -13,23 +13,11 @@ const Sidebar = () => {
   const { deanToken } = useContext(DeanContext)
   const { sidebarOpen, setSidebarOpen } = useContext(AppContext)
 
-  const location = useLocation()
-  const [dashDropdown, setDashDropdown] = React.useState(
-    ['/admin-dashboard', '/revenue-analytics', '/all-appointments', '/doctor-list', '/hospital-tieups', '/dean-dashboard', '/dean-appointments', '/dean-doctors', '/dean-patients'].includes(location.pathname)
-  )
-
   const closeSidebar = () => {
     if (window.innerWidth < 1024) {
       setSidebarOpen(false)
     }
   }
-
-  // Update dropdown state when location changes to keep it open if on a sub-page
-  React.useEffect(() => {
-    if (['/admin-dashboard', '/revenue-analytics', '/all-appointments', '/doctor-list', '/hospital-tieups', '/dean-dashboard', '/dean-appointments', '/dean-doctors', '/dean-patients'].includes(location.pathname)) {
-      setDashDropdown(true)
-    }
-  }, [location.pathname])
 
   return (
     <div className={`
@@ -60,46 +48,30 @@ const Sidebar = () => {
       {/* ── Admin Menu — (Super System Controller) ────────────────────────── */}
       {
         aToken && <ul className='text-[#515151] mt-5'>
-          {/* Dashboard Toggle + Main Link */}
-          <NavLink 
-            to={'/admin-dashboard'}
-            onClick={(e) => {
-              // Toggle dropdown but allow navigation
-              setDashDropdown(!dashDropdown)
-              if (window.innerWidth < 1024) setSidebarOpen(false)
-            }}
-            className={({ isActive }) => `flex items-center justify-between py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}
-          >
-            <div className='flex items-center gap-3'>
-              <img className='w-5' src={assets.home_icon} alt="" />
-              <p className='md:block'>Dashboard</p>
-            </div>
-            <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDashDropdown(!dashDropdown); }}>
-               <svg className={`w-4 h-4 transition-transform ${dashDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-            </div>
+          <NavLink onClick={closeSidebar} to={'/admin-dashboard'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
+            <img className='w-5' src={assets.home_icon} alt="" />
+            <p className='md:block'>Dashboard</p>
           </NavLink>
 
-          {/* Dashboard Submenu */}
-          {dashDropdown && (
-            <div className='bg-slate-50/50 border-b border-gray-100 animate-fade-in'>
-              <NavLink onClick={closeSidebar} to={'/revenue-analytics'} className={({ isActive }) => `flex items-center gap-3 py-2.5 px-3 md:px-12 cursor-pointer transition-all ${isActive ? 'text-admin font-bold bg-white shadow-sm' : 'hover:text-admin'}`}>
-                <div className='w-1 h-1 rounded-full bg-current opacity-50' />
-                <p className='text-xs'>Revenue Hub</p>
-              </NavLink>
-              <NavLink onClick={closeSidebar} to={'/all-appointments'} className={({ isActive }) => `flex items-center gap-3 py-2.5 px-3 md:px-12 cursor-pointer transition-all ${isActive ? 'text-admin font-bold bg-white shadow-sm' : 'hover:text-admin'}`}>
-                <div className='w-1 h-1 rounded-full bg-current opacity-50' />
-                <p className='text-xs'>Appointments</p>
-              </NavLink>
-              <NavLink onClick={closeSidebar} to={'/doctor-list'} className={({ isActive }) => `flex items-center gap-3 py-2.5 px-3 md:px-12 cursor-pointer transition-all ${isActive ? 'text-admin font-bold bg-white shadow-sm' : 'hover:text-admin'}`}>
-                <div className='w-1 h-1 rounded-full bg-current opacity-50' />
-                <p className='text-xs'>Doctors List</p>
-              </NavLink>
-              <NavLink onClick={closeSidebar} to={'/hospital-tieups'} className={({ isActive }) => `flex items-center gap-3 py-2.5 px-3 md:px-12 cursor-pointer transition-all ${isActive ? 'text-admin font-bold bg-white shadow-sm' : 'hover:text-admin'}`}>
-                <div className='w-1 h-1 rounded-full bg-current opacity-50' />
-                <p className='text-xs'>Hospital Tie ups</p>
-              </NavLink>
-            </div>
-          )}
+          <NavLink onClick={closeSidebar} to={'/revenue-analytics'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
+            <svg className='w-5 h-5' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+            <p className='md:block'>Revenue Hub</p>
+          </NavLink>
+
+          <NavLink onClick={closeSidebar} to={'/all-appointments'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
+            <img className='w-5' src={assets.appointment_icon} alt="" />
+            <p className='md:block'>Appointments</p>
+          </NavLink>
+
+          <NavLink onClick={closeSidebar} to={'/doctor-list'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
+            <img className='w-5' src={assets.people_icon} alt="" />
+            <p className='md:block'>Doctors List</p>
+          </NavLink>
+
+          <NavLink onClick={closeSidebar} to={'/hospital-tieups'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
+            <svg className='w-5 h-5' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+            <p className='md:block'>Hospital Tie ups</p>
+          </NavLink>
 
           <div className='h-px bg-gray-100 my-2 mx-9 opacity-50' />
 
@@ -144,11 +116,6 @@ const Sidebar = () => {
             <p className='md:block'>Admins</p>
           </NavLink>
 
-          <NavLink onClick={closeSidebar} to={'/revenue-analytics'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
-            <svg className='w-5 h-5' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            <p className='md:block'>Revenue Hub</p>
-          </NavLink>
-
           <li onClick={() => { sessionStorage.clear(); window.location.reload(); }} className='flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer hover:bg-rose-50 text-rose-500 mt-10 transition-all font-bold text-xs uppercase tracking-widest'>
             <svg className='w-5 h-5' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
             <p className='md:block'>Log Out</p>
@@ -159,45 +126,25 @@ const Sidebar = () => {
       {/* ── DEAN Menu — (Hospital Specific Operations) ──────────────────── */}
       {
         deanToken && <ul className='text-slate-600 mt-5'>
-          {/* Dashboard Toggle + Main Link */}
-          <NavLink 
-            to={'/dean-dashboard'}
-            onClick={(e) => {
-              setDashDropdown(!dashDropdown)
-              if (window.innerWidth < 1024) setSidebarOpen(false)
-            }}
-            className={({ isActive }) => `flex items-center justify-between py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0fdfa] border-r-4 border-dean text-dean font-bold' : 'hover:bg-slate-50'}`}
-          >
-            <div className='flex items-center gap-3'>
-              <img className='w-5' src={assets.home_icon} alt="" />
-              <p className='md:block'>Dashboard</p>
-            </div>
-            <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDashDropdown(!dashDropdown); }}>
-               <svg className={`w-4 h-4 transition-transform ${dashDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-            </div>
+          <NavLink onClick={closeSidebar} to={'/dean-dashboard'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0fdfa] border-r-4 border-dean text-dean font-bold' : 'hover:bg-slate-50'}`}>
+            <img className='w-5' src={assets.home_icon} alt="" />
+            <p className='md:block'>Dashboard</p>
           </NavLink>
 
-          {/* Dashboard Submenu */}
-          {dashDropdown && (
-            <div className='bg-emerald-50/30 border-b border-gray-100 animate-fade-in'>
-              <NavLink onClick={closeSidebar} to={'/dean-dashboard'} className={({ isActive }) => `flex items-center gap-3 py-2.5 px-3 md:px-12 cursor-pointer transition-all ${isActive ? 'text-dean font-bold bg-white shadow-sm' : 'hover:text-dean'}`}>
-                <div className='w-1 h-1 rounded-full bg-current opacity-50' />
-                <p className='text-xs'>Analytics Hub</p>
-              </NavLink>
-              <NavLink onClick={closeSidebar} to={'/dean-appointments'} className={({ isActive }) => `flex items-center gap-3 py-2.5 px-3 md:px-12 cursor-pointer transition-all ${isActive ? 'text-dean font-bold bg-white shadow-sm' : 'hover:text-dean'}`}>
-                <div className='w-1 h-1 rounded-full bg-current opacity-50' />
-                <p className='text-xs'>Appointments</p>
-              </NavLink>
-              <NavLink onClick={closeSidebar} to={'/dean-doctors'} className={({ isActive }) => `flex items-center gap-3 py-2.5 px-3 md:px-12 cursor-pointer transition-all ${isActive ? 'text-dean font-bold bg-white shadow-sm' : 'hover:text-dean'}`}>
-                <div className='w-1 h-1 rounded-full bg-current opacity-50' />
-                <p className='text-xs'>Doctors List</p>
-              </NavLink>
-              <NavLink onClick={closeSidebar} to={'/dean-patients'} className={({ isActive }) => `flex items-center gap-3 py-2.5 px-3 md:px-12 cursor-pointer transition-all ${isActive ? 'text-dean font-bold bg-white shadow-sm' : 'hover:text-dean'}`}>
-                <div className='w-1 h-1 rounded-full bg-current opacity-50' />
-                <p className='text-xs'>Patients</p>
-              </NavLink>
-            </div>
-          )}
+          <NavLink onClick={closeSidebar} to={'/dean-appointments'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0fdfa] border-r-4 border-dean text-dean font-bold' : 'hover:bg-slate-50'}`}>
+            <img className='w-5' src={assets.appointment_icon} alt="" />
+            <p className='md:block'>Appointments</p>
+          </NavLink>
+
+          <NavLink onClick={closeSidebar} to={'/dean-doctors'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0fdfa] border-r-4 border-dean text-dean font-bold' : 'hover:bg-slate-50'}`}>
+            <img className='w-5' src={assets.people_icon} alt="" />
+            <p className='md:block'>Doctors List</p>
+          </NavLink>
+
+          <NavLink onClick={closeSidebar} to={'/dean-patients'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0fdfa] border-r-4 border-dean text-dean font-bold' : 'hover:bg-slate-50'}`}>
+            <img className='w-5' src={assets.patients_icon} alt="" />
+            <p className='md:block'>Patients</p>
+          </NavLink>
 
           <div className='h-px bg-gray-100 my-2 mx-9 opacity-50' />
 

@@ -3,6 +3,7 @@ class HospitalModel {
   final String name;
   final String address;
   final String? imageUrl;
+  final String? backgroundImage;
   final double? rating;
   final String? specialization;
   final String? type;
@@ -22,6 +23,7 @@ class HospitalModel {
     required this.name,
     required this.address,
     this.imageUrl,
+    this.backgroundImage,
     this.rating,
     this.specialization,
     this.type,
@@ -57,6 +59,7 @@ class HospitalModel {
       name: '${json['name'] ?? json['hospitalName'] ?? 'Hospital'}',
       address: '${json['address'] ?? json['location'] ?? ''}',
       imageUrl: (json['image'] ?? json['profile_pic_url'])?.toString(),
+      backgroundImage: (json['backgroundImage'] ?? json['background_image'])?.toString(),
       rating: (json['rating'] is num) ? (json['rating'] as num).toDouble() : null,
       specialization: json['specialization']?.toString(),
       type: json['type']?.toString(),
@@ -89,6 +92,7 @@ class HospitalModel {
       name: name,
       address: address,
       imageUrl: imageUrl,
+      backgroundImage: backgroundImage,
       rating: rating,
       specialization: specialization,
       type: type,

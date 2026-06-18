@@ -4,6 +4,7 @@ import { AdminContext } from '../../context/AdminContext'
 import GlassCard from '../../components/ui/GlassCard'
 import { toast } from 'react-toastify'
 import { formatPublicId, publicIdBadgeClass } from '../../utils/publicIdDisplay'
+import { AdminPageLayout, PageHero, KpiCard, FilterToolbar, McSearch } from '../../components/mc'
 
 const ManageUsers = () => {
     const { aToken } = useContext(AdminContext)
@@ -53,36 +54,25 @@ const ManageUsers = () => {
     )
 
     return (
-        <div className='w-full bg-gradient-to-br from-indigo-50 via-white to-purple-50/30 p-4 sm:p-6 mobile-safe-area pb-6 min-h-full'>
-            <div className='max-w-6xl mx-auto space-y-6'>
-                <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
-                    <div>
-                        <h2 className='text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent'>Manage Platform Users</h2>
-                        <p className='text-sm text-gray-500'>Super Admin: Monitor and manage all patients registered on MedChain.</p>
-                    </div>
-                    <div className='flex items-center gap-3'>
-                        <button 
-                            onClick={fetchAllUsers}
-                            className='p-2 bg-white border rounded-xl hover:bg-gray-50 transition-all shadow-sm'
-                            title="Refresh Data"
-                        >
-                            <svg className={`w-5 h-5 text-indigo-600 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                        </button>
-                        <div className='relative w-full sm:w-64'>
-                            <input 
-                                value={search} 
-                                onChange={e => setSearch(e.target.value)} 
-                                placeholder='Search by name or email...' 
-                                className='w-full pl-10 pr-4 py-2 border-2 border-gray-100 rounded-xl focus:border-indigo-500 outline-none transition-all text-sm'
-                            />
-                            <svg className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </div>
-                    </div>
+        <AdminPageLayout>
+                <PageHero
+                    title="User Management"
+                    subtitle="Monitor and manage all patients and platform users across MediChain."
+                    features={['Role-based Access', 'Activity Tracking', 'Secure Invitations']}
+                />
+
+                <div className="mc-kpi-grid mc-kpi-grid--4">
+                    <KpiCard label="Total Users" value={users.length} iconBg="bg-sky-100 text-sky-600"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
+                    />
+                    <KpiCard label="Search Results" value={filtered.length} iconBg="bg-violet-100 text-violet-600"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>}
+                    />
                 </div>
+
+                <FilterToolbar>
+                    <McSearch placeholder="Search users by name, email or ID..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                </FilterToolbar>
 
                 <div className='bg-gray-50/50 rounded-2xl p-1'>
                     {loading ? (
@@ -218,8 +208,7 @@ const ManageUsers = () => {
                         </>
                     )}
                 </div>
-            </div>
-        </div>
+        </AdminPageLayout>
     )
 }
 

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../providers/hospital_provider.dart';
 import '../../utils/hospital_stats.dart';
+import '../../utils/image_url_helper.dart';
 import '../../widgets/common/app_loader.dart';
 import '../../widgets/healthcare/premium_healthcare_theme.dart';
 import '../../widgets/healthcare/hospital_contact_actions.dart';
@@ -72,6 +73,7 @@ class HospitalDetailsScreen extends ConsumerWidget {
                     subtitle: (subtitle != null && subtitle.isNotEmpty) ? subtitle : null,
                     address: h.address,
                     phone: h.contact,
+                    backgroundImageUrl: resolveImageUrl(h.backgroundImage),
                   ),
                 ),
                 SliverToBoxAdapter(
@@ -111,7 +113,7 @@ class HospitalDetailsScreen extends ConsumerWidget {
                         final doc = doctors[index];
                         return PremiumHospitalDoctorCard(
                           doctor: doc,
-                          onBook: doc.available
+                          onBook: doc.isBookable
                               ? () => context.push('/booking/patient/${doc.id}')
                               : null,
                         );

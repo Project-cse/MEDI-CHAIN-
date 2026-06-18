@@ -28,7 +28,7 @@ const AdminContextProvider = (props) => {
 
     const [appointments, setAppointments] = useState([])
     const [doctors, setDoctors] = useState([])
-    const [dashData, setDashData] = useState(false)
+    const [dashData, setDashData] = useState(null)
     const [hospitals, setHospitals] = useState([])
     const [labs, setLabs] = useState([])
     const [bloodBanks, setBloodBanks] = useState([])
@@ -139,6 +139,23 @@ const AdminContextProvider = (props) => {
         } catch (error) {
             console.log(error)
             toast.error(error.message)
+            setDashData({
+                doctors: 0,
+                activeDoctors: 0,
+                appointments: 0,
+                appointmentsToday: 0,
+                patients: 0,
+                patientsToday: 0,
+                revenueToday: 0,
+                revenueTotal: 0,
+                hospitals: 0,
+                chartData: {
+                    patientGrowth: { labels: [], values: [] },
+                    revenue: { labels: [], values: [] },
+                    appointments: { labels: [], values: [] },
+                },
+                latestAppointments: [],
+            })
         }
 
     }

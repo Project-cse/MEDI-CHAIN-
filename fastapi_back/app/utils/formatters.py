@@ -89,6 +89,23 @@ def _parse_doctor_rating(d: Dict[str, Any]) -> float:
     return _rating_from_experience(d.get('experience'))
 
 
+def _normalize_doctor_status(raw) -> str:
+    s = (raw or "available").strip().lower()
+    if s in ("active", "available", "online"):
+        return "available"
+    if s in ("in-clinic", "in_clinic", "in consult", "in-consult"):
+        return "in-clinic"
+    if s in ("inactive", "disabled"):
+        return "inactive"
+    if s in ("busy", "emergency", "unavailable", "offline"):
+        return s
+    return "available"
+
+
+def _doctor_available_for_status(status: str) -> bool:
+    return status in ("available", "busy", "online", "in-clinic")
+
+
 def format_doctor(doc: Any) -> Optional[Dict[str, Any]]:
     if not doc:
         return None
@@ -102,23 +119,39 @@ def format_doctor(doc: Any) -> Optional[Dict[str, Any]]:
         except:
             slots_booked = {}
             
-    rating = round(_parse_doctor_rating(d), 1)
+    rating_raw = d.get('rating')
+    rating = None
+    if rating_raw is not None:
+        try:
+            r = float(rating_raw)
+            if r > 0:
+                rating = round(r, 1)
+        except (TypeError, ValueError):
+            rating = None
+
     reviews = d.get('reviews') or d.get('review_count') or 0
     try:
         reviews = int(reviews)
     except (TypeError, ValueError):
         reviews = 0
-    if reviews <= 0 and d.get('id') is not None:
-        try:
-            reviews = 15 + (int(d['id']) % 100)
-        except (TypeError, ValueError):
-            reviews = 0
+    if reviews < 0:
+        reviews = 0
+
+    status = _normalize_doctor_status(d.get('status'))
+    available = d.get('available', True)
+    if status == "inactive":
+        available = False
+    elif 'available' not in d and status in ('unavailable', 'emergency'):
+        available = False
+    elif 'available' not in d:
+        available = _doctor_available_for_status(status)
 
     return {
         "_id": d.get('id'),
         "id": d.get('id'),
         "publicId": d.get('public_id'),
         "name": d.get('name'),
+        "email": d.get('email'),
         "image": d.get('image'),
         "rating": rating,
         "reviews": reviews,
@@ -133,8 +166,8 @@ def format_doctor(doc: Any) -> Optional[Dict[str, Any]]:
             "line1": d.get('address_line1', ''),
             "line2": d.get('address_line2', '')
         } if d.get('address_line1') else {},
-        "available": d.get('available', True),
-        "status": d.get('status', 'available'),
+        "available": available,
+        "status": status,
         "phone": d.get('phone') or d.get('hospital_contact') or d.get('contact'),
         "slots_booked": slots_booked,
         "hospitalId": d.get('hospital_id'),

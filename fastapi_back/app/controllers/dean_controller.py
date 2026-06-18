@@ -232,6 +232,7 @@ async def add_hospital_doctor(hospital_id: int, data: dict):
             "fees": float(data.get("fees", 500)),
             "hospitalId": hospital_id,
             "available": True,
+            "status": "available",
             "address": data.get("address") or {"line1": "Hospital Premise", "line2": "Main Ward"}
         }
 
@@ -296,11 +297,13 @@ async def toggle_doctor_account_status(hospital_id: int, doc_id: Union[int, str]
         if not doc or doc.get("hospital_id") != hospital_id:
             return {"success": False, "message": "Access denied"}
 
-        # Use status field if exists, or available as proxy
-        current_status = doc.get("status") != "Inactive"
-        new_status = "Inactive" if current_status else "Available"
+        current_status = (doc.get("status") or "").lower() not in ("inactive",)
+        new_status = "inactive" if current_status else "available"
         
-        await doctor_model.update_doctor(int(doc_id), {"status": new_status, "available": not current_status})
+        await doctor_model.update_doctor(int(doc_id), {
+            "status": new_status,
+            "available": not current_status,
+        })
         
         return {"success": True, "message": f"Account {'deactivated' if current_status else 'activated'}"}
     except Exception as e:
@@ -309,9 +312,12 @@ async def toggle_doctor_account_status(hospital_id: int, doc_id: Union[int, str]
 
 async def update_hospital_doctor(hospital_id: int, doctor_id, data: dict):
     try:
+        doc = await doctor_model.get_doctor_by_id(int(doctor_id))
+        if not doc or doc.get("hospital_id") != hospital_id:
+            return {"success": False, "message": "Doctor not found in your hospital"}
         from app.controllers.admin_controller import update_doctor
-        data["docId"] = doctor_id
-        return await update_doctor(data, None)
+        payload = {**(data or {}), "docId": doctor_id}
+        return await update_doctor(payload, None)
     except Exception as e:
         return {"success": False, "message": str(e)}
 

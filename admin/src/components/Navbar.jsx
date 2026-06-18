@@ -105,8 +105,7 @@ const Navbar = () => {
         maxHeight: '64px'
       }}
     >
-      <div className='flex items-center gap-2 sm:gap-3'>
-        {/* Hamburger Menu - Only on Mobile/Tablet */}
+      <div className='flex items-center gap-2 sm:gap-3 min-w-0'>
         <button 
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className='lg:hidden p-2 rounded-lg hover:bg-mc-surface-elevated transition-colors'
@@ -116,16 +115,7 @@ const Navbar = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sidebarOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
           </svg>
         </button>
-
-        {/* Official MediChain Logo only (status + profile moved to sidebar) */}
-        <div className='flex items-center'>
-          <BrandLogo
-            size="medium"
-            variant="header"
-            clickable={true}
-            className="mr-1 sm:mr-2"
-          />
-        </div>
+        <BrandLogo size="medium" variant="header" clickable={true} />
       </div>
 
       <div className='flex items-center gap-1.5 sm:gap-3 min-w-0 max-w-[45vw] sm:max-w-none justify-end'>

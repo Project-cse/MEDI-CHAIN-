@@ -3,6 +3,7 @@ import { DoctorContext } from '../../context/DoctorContext'
 import { AppContext } from '../../context/AppContext'
 import { toast } from 'react-toastify'
 import axios from 'axios'
+import { AdminPageLayout } from '../../components/mc'
 
 const DoctorProfile = () => {
 
@@ -100,8 +101,11 @@ const DoctorProfile = () => {
     }
 
     return profileData && (
-        <div className='w-full bg-gray-50 mobile-safe-area pb-6 min-h-full p-4 sm:p-6 lg:p-8'>
-            <div className='max-w-6xl mx-auto'>
+        <AdminPageLayout maxWidth="max-w-6xl mx-auto">
+                <div>
+                    <h1 className='text-2xl font-bold text-mc-text'>Profile</h1>
+                    <p className='text-sm text-mc-text-muted mt-0.5'>Manage your personal details, professional information and account settings.</p>
+                </div>
                 <div className='flex flex-col lg:flex-row gap-6 lg:gap-8'>
                     {/* Left Side - Profile Card */}
                     <div className='w-full lg:w-80 flex-shrink-0'>
@@ -325,8 +329,7 @@ const DoctorProfile = () => {
                         )}
                     </div>
                 </div>
-            </div>
-        </div>
+        </AdminPageLayout>
     )
 }
 

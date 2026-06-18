@@ -48,19 +48,53 @@ class DoctorModel {
 
   bool get hasRating => rating != null && rating! > 0;
 
+  String get _statusKey => (status ?? '').toLowerCase().trim();
+
+  bool get isInactive => _statusKey == 'inactive';
+
+  /// Matches Dean portal: available, busy, emergency, unavailable (+ inactive).
   bool get isOnline {
-    final s = (status ?? '').toLowerCase();
-    if (s == 'online' || s == 'in-clinic' || s == 'available') return available;
-    if (s == 'offline' || s == 'unavailable' || s == 'busy') return false;
+    if (isInactive || !available) return false;
+    if (_statusKey == 'unavailable' || _statusKey == 'offline' || _statusKey == 'emergency') {
+      return false;
+    }
+    if (_statusKey == 'busy') return true;
+    if (_statusKey == 'online' || _statusKey == 'in-clinic' || _statusKey == 'available') {
+      return true;
+    }
     return available;
   }
 
+  bool get isBookable {
+    if (isInactive || !available) return false;
+    return _statusKey == 'available' ||
+        _statusKey == 'busy' ||
+        _statusKey == 'online' ||
+        _statusKey == 'in-clinic' ||
+        _statusKey.isEmpty;
+  }
+
   String get onlineStatusLabel {
-    final s = (status ?? '').toLowerCase();
-    if (s == 'in-clinic') return 'In clinic';
-    if (s == 'online') return 'Online';
-    if (!available || s == 'offline' || s == 'unavailable' || s == 'busy') return 'Offline';
-    return 'Online';
+    switch (_statusKey) {
+      case 'inactive':
+        return 'Inactive';
+      case 'emergency':
+        return 'Emergency';
+      case 'busy':
+        return 'Busy';
+      case 'unavailable':
+      case 'offline':
+        return 'Unavailable';
+      case 'in-clinic':
+      case 'in_clinic':
+        return 'In clinic';
+      case 'online':
+        return 'Online';
+      case 'available':
+        return 'Available';
+      default:
+        return available ? 'Available' : 'Unavailable';
+    }
   }
 
   static ({String? line1, String? line2, String? full}) _parseAddressFields(dynamic addr) {

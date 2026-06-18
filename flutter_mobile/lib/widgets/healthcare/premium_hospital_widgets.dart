@@ -60,6 +60,7 @@ class PremiumHospitalHeroCard extends StatelessWidget {
     this.subtitle,
     required this.address,
     this.phone,
+    this.backgroundImageUrl,
   });
 
   final String badge;
@@ -67,6 +68,47 @@ class PremiumHospitalHeroCard extends StatelessWidget {
   final String? subtitle;
   final String address;
   final String? phone;
+
+  /// Optional uploaded banner image URL. When present it is shown as the card
+  /// background with a dark/blue gradient overlay so text stays readable.
+  /// Falls back to the default building asset / teal gradient when null.
+  final String? backgroundImageUrl;
+
+  Widget _defaultAsset() {
+    return Image.asset(
+      kHospitalBuildingAsset,
+      fit: BoxFit.cover,
+      alignment: const Alignment(0.18, 0),
+      filterQuality: FilterQuality.high,
+      errorBuilder: (_, error, __) {
+        debugPrint('Failed to load $kHospitalBuildingAsset: $error');
+        return const DecoratedBox(
+          decoration: BoxDecoration(gradient: _heroShadeGradient),
+        );
+      },
+    );
+  }
+
+  Widget _buildBackground() {
+    final url = backgroundImageUrl?.trim();
+    if (url == null || url.isEmpty) {
+      // Default building banner already includes the left blue shade.
+      return _defaultAsset();
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.network(
+          url,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.high,
+          errorBuilder: (_, __, ___) => _defaultAsset(),
+        ),
+        // Dark/blue overlay for readability over an arbitrary photo.
+        const DecoratedBox(decoration: BoxDecoration(gradient: _heroOverlayGradient)),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,19 +124,7 @@ class PremiumHospitalHeroCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Banner already includes the left blue shade — no extra overlay.
-            Image.asset(
-              kHospitalBuildingAsset,
-              fit: BoxFit.cover,
-              alignment: const Alignment(0.18, 0),
-              filterQuality: FilterQuality.high,
-              errorBuilder: (_, error, __) {
-                debugPrint('Failed to load $kHospitalBuildingAsset: $error');
-                return const DecoratedBox(
-                  decoration: BoxDecoration(gradient: _heroShadeGradient),
-                );
-              },
-            ),
+            _buildBackground(),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 12, 18),
               child: Align(
@@ -199,6 +229,19 @@ class PremiumHospitalHeroCard extends StatelessWidget {
     );
   }
 }
+
+/// Dark/blue overlay drawn on top of an uploaded banner image so the hospital
+/// name, specialization, address and phone remain readable.
+const _heroOverlayGradient = LinearGradient(
+  begin: Alignment.centerLeft,
+  end: Alignment.centerRight,
+  colors: [
+    Color(0xE60A1B2A),
+    Color(0xB3091A29),
+    Color(0x4D0A1B2A),
+  ],
+  stops: [0.0, 0.5, 1.0],
+);
 
 /// Fallback when the banner asset fails to load.
 const _heroShadeGradient = LinearGradient(
@@ -392,7 +435,7 @@ class PremiumHospitalDoctorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = doctor.name.startsWith('Dr.') ? doctor.name : 'Dr. ${doctor.name}';
-    final available = doctor.available;
+    final bookable = doctor.isBookable;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(
@@ -459,22 +502,6 @@ class PremiumHospitalDoctorCard extends StatelessWidget {
                 ],
                 const SizedBox(height: 6),
                 DoctorStatusBadge(doctor: doctor, compact: true),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: available ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    available ? 'Available' : 'On Leave',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: available ? PremiumHealthcareTheme.successGreen : const Color(0xFFDC2626),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),

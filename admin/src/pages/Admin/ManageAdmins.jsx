@@ -4,6 +4,7 @@ import { AdminContext } from '../../context/AdminContext'
 import { toast } from 'react-toastify'
 import GlassCard from '../../components/ui/GlassCard'
 import { formatPublicId, publicIdBadgeClass } from '../../utils/publicIdDisplay'
+import { AdminPageLayout, PageHero, KpiCard, McCard } from '../../components/mc'
 
 const ManageAdmins = () => {
     const { aToken } = useContext(AdminContext)
@@ -31,13 +32,17 @@ const ManageAdmins = () => {
     }, [aToken])
 
     return (
-        <div className='w-full bg-gradient-to-br from-indigo-50 via-white to-violet-50/30 p-4 sm:p-6 mobile-safe-area pb-6 min-h-full'>
-            <div className='max-w-5xl mx-auto space-y-6'>
-                <div>
-                    <h2 className='text-2xl font-bold bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent'>
-                        Platform Admins
-                    </h2>
-                    <p className='text-sm text-gray-500 mt-1'>Super-admin accounts with global MEDCLUES access</p>
+        <AdminPageLayout maxWidth="max-w-5xl mx-auto">
+                <PageHero
+                    title="Admins"
+                    subtitle="Super-admin accounts with global MediChain platform access."
+                    features={['Secure Access Control', 'Role Management', 'Audit Trail']}
+                />
+
+                <div className="mc-kpi-grid mc-kpi-grid--4">
+                    <KpiCard label="Total Admins" value={admins.length} iconBg="bg-violet-100 text-violet-600"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>}
+                    />
                 </div>
 
                 {loading ? (
@@ -49,25 +54,25 @@ const ManageAdmins = () => {
                         No admin records in database yet. Env-based login may still work via `.env`.
                     </GlassCard>
                 ) : (
-                    <GlassCard className='overflow-hidden border-none shadow-md'>
-                        <table className='w-full text-sm'>
-                            <thead className='bg-gray-50/80 text-gray-400 font-bold uppercase text-[10px] tracking-widest'>
+                    <McCard title="Admin Users" noPadding bodyClassName="overflow-x-auto">
+                        <table className='mc-data-table'>
+                            <thead>
                                 <tr>
-                                    <th className='px-6 py-4 text-left'>Admin ID</th>
-                                    <th className='px-6 py-4 text-left'>Email</th>
-                                    <th className='px-6 py-4 text-right'>Created</th>
+                                    <th>Admin ID</th>
+                                    <th>Email</th>
+                                    <th style={{ textAlign: 'right' }}>Created</th>
                                 </tr>
                             </thead>
-                            <tbody className='divide-y divide-gray-50 bg-white/40'>
+                            <tbody>
                                 {admins.map((admin) => (
-                                    <tr key={admin.id} className='hover:bg-indigo-50/40'>
-                                        <td className='px-6 py-4'>
+                                    <tr key={admin.id}>
+                                        <td>
                                             <span className={publicIdBadgeClass('slate')}>
                                                 {formatPublicId(admin, 'ADM', admin.id)}
                                             </span>
                                         </td>
-                                        <td className='px-6 py-4 font-medium text-gray-800'>{admin.email}</td>
-                                        <td className='px-6 py-4 text-right text-gray-500 text-xs'>
+                                        <td>{admin.email}</td>
+                                        <td style={{ textAlign: 'right' }} className='text-mc-text-muted text-xs'>
                                             {admin.createdAt
                                                 ? new Date(admin.createdAt).toLocaleDateString('en-IN', {
                                                     day: '2-digit',
@@ -80,10 +85,9 @@ const ManageAdmins = () => {
                                 ))}
                             </tbody>
                         </table>
-                    </GlassCard>
+                    </McCard>
                 )}
-            </div>
-        </div>
+        </AdminPageLayout>
     )
 }
 

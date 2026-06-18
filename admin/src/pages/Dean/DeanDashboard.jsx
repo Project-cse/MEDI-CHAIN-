@@ -57,20 +57,33 @@ const DeanDashboard = () => {
     <div className='w-full bg-gradient-to-br from-gray-50 via-white to-emerald-50/30 p-4 sm:p-6 mobile-safe-area pb-6 min-h-full'>
       <div className='space-y-4 animate-fade-in-up'>
 
-        {/* Hospital Banner */}
-        <div className='bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl'>
-          <div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3'>
-            <div>
-              <p className='text-xs font-semibold uppercase tracking-widest text-emerald-100 mb-1'>Dashboard</p>
-              <h1 className='text-2xl sm:text-3xl font-bold'>{hospital?.name || deanInfo?.hospitalName || 'Your Hospital'}</h1>
-              <p className='text-sm text-emerald-100 mt-1'>{hospital?.address}</p>
+        {/* Hospital Banner — uses uploaded background image, falls back to gradient */}
+        {(() => {
+          const bannerUrl = hospital?.background_image || hospital?.backgroundImage || null
+          return (
+            <div className='relative overflow-hidden rounded-2xl p-4 sm:p-6 text-white shadow-xl'>
+              {bannerUrl ? (
+                <>
+                  <img src={bannerUrl} alt='Hospital banner' className='absolute inset-0 w-full h-full object-cover' />
+                  <div className='absolute inset-0 bg-gradient-to-r from-slate-900/85 via-slate-900/55 to-slate-900/25' />
+                </>
+              ) : (
+                <div className='absolute inset-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600' />
+              )}
+              <div className='relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3'>
+                <div>
+                  <p className='text-xs font-semibold uppercase tracking-widest text-white/80 mb-1'>Dashboard</p>
+                  <h1 className='text-2xl sm:text-3xl font-bold drop-shadow'>{hospital?.name || deanInfo?.hospitalName || 'Your Hospital'}</h1>
+                  <p className='text-sm text-white/90 mt-1'>{hospital?.address}</p>
+                </div>
+                <div className='text-right bg-white/20 backdrop-blur rounded-xl p-3'>
+                  <p className='text-lg font-bold tracking-wider'>{formatTime(currentTime)}</p>
+                  <p className='text-[10px] text-white/90 mt-0.5'>{formatDate(currentTime)}</p>
+                </div>
+              </div>
             </div>
-            <div className='text-right bg-white/20 backdrop-blur rounded-xl p-3'>
-              <p className='text-lg font-bold tracking-wider'>{formatTime(currentTime)}</p>
-              <p className='text-[10px] text-emerald-100 mt-0.5'>{formatDate(currentTime)}</p>
-            </div>
-          </div>
-        </div>
+          )
+        })()}
 
         {/* Top Widgets - Premium Style matched with Super Admin */}
         <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4'>

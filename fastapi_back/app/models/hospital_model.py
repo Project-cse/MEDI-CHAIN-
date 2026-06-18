@@ -114,12 +114,13 @@ async def create_hospital_tieup(data: dict):
     sql = """
         INSERT INTO hospital_tieups (
             name, address, contact, specialization, type, show_on_home,
-            latitude, longitude, maps_link
+            latitude, longitude, maps_link, background_image
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *
     """
     maps_link = (data.get('mapsLink') or data.get('maps_link') or '').strip() or None
+    background_image = (data.get('backgroundImage') or data.get('background_image') or '').strip() or None
     values = [
         data.get('name'),
         data.get('address'),
@@ -130,6 +131,7 @@ async def create_hospital_tieup(data: dict):
         data.get('latitude'),
         data.get('longitude'),
         maps_link,
+        background_image,
     ]
     return await db.fetch_one(sql, *values)
 
@@ -150,13 +152,22 @@ async def update_hospital_tieup(tieup_id: int, data: dict):
         'longitude': 'longitude',
         'mapsLink': 'maps_link',
         'maps_link': 'maps_link',
+        'backgroundImage': 'background_image',
+        'background_image': 'background_image',
     }
 
+    seen_db_keys = set()
     for key, db_key in mapping.items():
+        if db_key in seen_db_keys:
+            continue
         if key in data and data[key] is not None:
             val = data[key]
             if db_key == 'maps_link':
                 val = (val or '').strip() or None
+            elif db_key == 'background_image':
+                # Empty string clears the banner (stored as NULL)
+                val = (val or '').strip() or None
+            seen_db_keys.add(db_key)
             fields.append(f"{db_key} = ${param_count}")
             values.append(val)
             param_count += 1

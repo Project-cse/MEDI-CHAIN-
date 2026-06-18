@@ -301,7 +301,11 @@ class PremiumHospitalDirectoryCard extends StatelessWidget {
     final isVerified = hospital.canOpenDetails;
     final hasDoctors = hospital.doctorCount != null && hospital.doctorCount! > 0;
     final hasEmergency = hospital.emergencyAvailable == true;
-    final imageUri = resolveImageUrl(hospital.imageUrl);
+    final imageUri = resolveImageUrl(
+      (hospital.backgroundImage?.trim().isNotEmpty ?? false)
+          ? hospital.backgroundImage
+          : hospital.imageUrl,
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),

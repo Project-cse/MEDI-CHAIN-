@@ -5,6 +5,7 @@ import GlassCard from '../../components/ui/GlassCard'
 import LineChart from '../../components/charts/LineChart'
 import BarChart from '../../components/charts/BarChart'
 import AnimatedCounter from '../../components/ui/AnimatedCounter'
+import { AdminPageLayout, PageHero, FilterToolbar, McSelect, KpiCard } from '../../components/mc'
 
 const RevenueAnalytics = () => {
     const { getRevenueAnalytics, revenueData } = useContext(AdminContext)
@@ -41,49 +42,37 @@ const RevenueAnalytics = () => {
     }
 
     const currentChartData = revenueData[selectedOption] || { labels: [], values: [], total: 0 }
+    const fmtInr = (n) => `₹ ${Number(n || 0).toLocaleString('en-IN')}`
 
     return (
-        <div className='w-full mobile-safe-area pb-6 min-h-full bg-gray-50 p-4 sm:p-6 lg:p-8'>
-            <div className='max-w-4xl mx-auto'>
-                {/* Header Section */}
-                <header className='flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6'>
-                    <div>
-                        <h1 className='text-3xl font-black text-gray-900 tracking-tight'>
-                            Revenue <span className='text-indigo-600'>Analytics</span>
-                        </h1>
-                        <p className='text-gray-400 mt-1 text-sm font-medium'>Platform financial performance overview.</p>
-                    </div>
+        <AdminPageLayout maxWidth="max-w-5xl mx-auto">
+                <PageHero
+                    title="Revenue Hub"
+                    subtitle="Centralized financial insights and revenue management across the healthcare network."
+                    features={['Real-time Financial Analytics', 'Multi-source Revenue Tracking', 'Automated Settlements', 'Data-driven Decisions']}
+                    widget={{
+                        type: 'metric',
+                        label: 'LIVE REVENUE',
+                        value: fmtInr(currentChartData.total),
+                        sublabel: options.find((o) => o.id === selectedOption)?.label,
+                    }}
+                />
 
-                    <div className='w-full md:w-72'>
-                        <label htmlFor="revenue-filter" className='block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5'>Timeframe</label>
-                        <select
-                            id="revenue-filter"
-                            value={selectedOption}
-                            onChange={(e) => setSelectedOption(e.target.value)}
-                            className='w-full bg-white border border-gray-100 rounded-xl px-4 py-3 text-xs font-bold text-gray-600 shadow-sm focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-200 outline-none transition-all cursor-pointer'
-                        >
-                            {options.map(opt => (
-                                <option key={opt.id} value={opt.id}>{opt.label}</option>
-                            ))}
-                        </select>
-                    </div>
-                </header>
+                <FilterToolbar>
+                    <McSelect id="revenue-filter" value={selectedOption} onChange={(e) => setSelectedOption(e.target.value)}>
+                        {options.map((opt) => (
+                            <option key={opt.id} value={opt.id}>{opt.label}</option>
+                        ))}
+                    </McSelect>
+                </FilterToolbar>
 
-                {/* Total Summary Above Graph */}
-                <div className='mb-4 bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex items-center justify-between group transition-all hover:border-indigo-100'>
-                    <div>
-                        <h2 className='text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mb-0.5'>Total Revenue</h2>
-                        <div className='flex items-baseline gap-2'>
-                            <span className='text-3xl font-black text-gray-900 tracking-tight'>
-                                ₹<AnimatedCounter value={currentChartData.total} />
-                            </span>
-                        </div>
-                    </div>
-                    <div className='w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100'>
-                        <svg className='w-6 h-6' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                        </svg>
-                    </div>
+                <div className="mc-kpi-grid mc-kpi-grid--4">
+                    <KpiCard label="Gross Revenue" value={fmtInr(currentChartData.total)} iconBg="bg-emerald-100 text-emerald-600"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                    />
+                    <KpiCard label="Net Revenue" value={fmtInr(Math.round(currentChartData.total * 0.92))} iconBg="bg-sky-100 text-sky-600"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
+                    />
                 </div>
 
                 {/* Graph Area */}
@@ -124,8 +113,7 @@ const RevenueAnalytics = () => {
                     <div className='w-1 h-1 rounded-full bg-gray-200' />
                     <span>MediChain+ Official</span>
                 </div>
-            </div>
-        </div>
+        </AdminPageLayout>
     )
 }
 

@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { AdminContext } from '../../context/AdminContext'
 import { toast } from 'react-toastify'
-import GlassCard from '../../components/ui/GlassCard'
+import { AdminPageLayout, PageHero, KpiCard, FilterToolbar, McButton } from '../../components/mc'
 
 const ManageLabs = () => {
     const { labs, getAllLabs, addLab, updateLab, deleteLab } = useContext(AdminContext)
@@ -96,28 +96,38 @@ const ManageLabs = () => {
         setShowModal(true)
     }
 
+    const verifiedCount = labs.filter(l => l.verified).length
+    const partnerCount = labs.filter(l => l.partner_type === 'partner').length
+    const openCount = labs.filter(l => l.open_now).length
+
     return (
-        <div className='w-full p-4 sm:p-6 lg:p-10 mobile-safe-area pb-6 min-h-full bg-white'>
-            <div className='max-w-7xl mx-auto'>
-                {/* Header Section */}
-                <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10'>
-                    <div className='animate-fade-in'>
-                        <h1 className='text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight'>
-                            Diagnostic Lab <span className='text-indigo-600'>Management</span>
-                        </h1>
-                        <p className='text-gray-500 mt-2 text-lg'>Register and verify partner labs for diagnostic services.</p>
-                    </div>
-                    <button
-                        onClick={() => { resetForm(); setShowModal(true) }}
-                        className='group relative px-8 py-4 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all duration-300 font-bold flex items-center gap-3 overflow-hidden active:scale-95'
-                    >
-                        <div className='absolute inset-0 bg-white/10 group-hover:translate-x-full transition-transform duration-500'></div>
-                        <svg className='w-6 h-6' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Register New Lab
-                    </button>
+        <AdminPageLayout>
+                <PageHero
+                    title="Labs"
+                    subtitle="Manage and monitor connected diagnostic labs and test operations."
+                    features={['Real-time Lab Connectivity', 'SLA & TAT Monitoring', 'Report Automation', 'Quality Assurance']}
+                />
+
+                <div className="mc-kpi-grid mc-kpi-grid--4">
+                    <KpiCard label="Connected Labs" value={labs.length} iconBg="bg-sky-100 text-sky-600"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>}
+                    />
+                    <KpiCard label="Verified Labs" value={verifiedCount} iconBg="bg-emerald-100 text-emerald-600"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                    />
+                    <KpiCard label="Elite Partners" value={partnerCount} iconBg="bg-violet-100 text-violet-600"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>}
+                    />
+                    <KpiCard label="Operational Now" value={openCount} iconBg="bg-amber-100 text-amber-600"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                    />
                 </div>
+
+                <FilterToolbar
+                    actions={<McButton onClick={() => { resetForm(); setShowModal(true) }}>+ Register New Lab</McButton>}
+                >
+                    <span className="text-sm text-mc-text-muted">Diagnostic Lab Management</span>
+                </FilterToolbar>
 
                 {loading ? (
                     <div className='flex flex-col items-center justify-center py-32 space-y-4'>
@@ -309,8 +319,7 @@ const ManageLabs = () => {
                         </div>
                     </div>
                 )}
-            </div>
-        </div>
+        </AdminPageLayout>
     )
 }
 

@@ -1,389 +1,320 @@
-import React, { useContext, useEffect, useState } from 'react'
+import React, { useContext, useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { assets } from '../../assets/assets'
+import axios from 'axios'
 import { AdminContext } from '../../context/AdminContext'
-import { AppContext } from '../../context/AppContext'
 import { useSocket } from '../../context/SocketContext'
 import { toast } from 'react-toastify'
-import GlassCard from '../../components/ui/GlassCard'
 import AnimatedCounter from '../../components/ui/AnimatedCounter'
-import StatusIndicator from '../../components/ui/StatusIndicator'
 import LineChart from '../../components/charts/LineChart'
-import BarChart from '../../components/charts/BarChart'
 import AreaChart from '../../components/charts/AreaChart'
+import BarChart from '../../components/charts/BarChart'
+import { AdminPageLayout, PageHero, KpiCard, McCard } from '../../components/mc'
+
+const QUICK_ACTIONS = [
+  { label: 'Add New Doctor', path: '/add-doctor', bg: 'bg-teal-500' },
+  { label: 'Schedule Appointment', path: '/all-appointments', bg: 'bg-sky-500' },
+  { label: 'Add New Dean', path: '/manage-deans', bg: 'bg-violet-500' },
+  { label: 'Add New Hospital', path: '/hospital-tieups', bg: 'bg-blue-500' },
+  { label: 'Connect New Lab', path: '/manage-labs', bg: 'bg-orange-500' },
+  { label: 'Generate Report', path: '/revenue-analytics', bg: 'bg-emerald-500' },
+]
 
 const Dashboard = () => {
-  const { aToken, getDashData, cancelAppointment, dashData, getAllDoctors, doctors, getAllAppointments, hospitals, getAllHospitals } = useContext(AdminContext)
-  const { slotDateFormat } = useContext(AppContext)
-  const { socket, isConnected, liveData } = useSocket()
+  const {
+    aToken,
+    getDashData,
+    dashData,
+    getAllDoctors,
+    doctors,
+    getAllAppointments,
+    hospitals,
+    getAllHospitals,
+    getAllLabs,
+    getAllBloodBanks,
+    labs,
+    bloodBanks,
+  } = useContext(AdminContext)
+  const { socket, isConnected } = useSocket()
   const navigate = useNavigate()
-  const [currentTime, setCurrentTime] = useState(new Date())
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
+
+  const [extraStats, setExtraStats] = useState({ deans: 0, refunds: 0 })
   const [chartData, setChartData] = useState({
     patientGrowth: { labels: [], values: [] },
     revenue: { labels: [], values: [] },
-    appointments: { labels: [], values: [] }
+    appointments: { labels: [], values: [] },
   })
-  const [docSearch, setDocSearch] = useState('')
 
   useEffect(() => {
-    if (aToken) {
-      getDashData()
-      getAllDoctors()
-      getAllHospitals()
+    if (!aToken) return
+    getDashData()
+    getAllDoctors()
+    getAllHospitals()
+    getAllLabs()
+    getAllBloodBanks()
 
-      // Auto-refresh dashboard every 30 seconds to get latest counts
-      const refreshInterval = setInterval(() => {
-        getDashData()
-      }, 30000) // Refresh every 30 seconds
-
-      return () => clearInterval(refreshInterval)
-    }
+    const refreshInterval = setInterval(() => getDashData(), 30000)
+    return () => clearInterval(refreshInterval)
   }, [aToken])
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [])
+    if (!aToken) return
+    const loadExtra = async () => {
+      try {
+        const [deansRes, refundsRes] = await Promise.all([
+          axios.get(`${backendUrl}/api/admin/deans`, { headers: { aToken } }),
+          axios.get(`${backendUrl}/api/admin/refunds/pending`, { headers: { aToken } }),
+        ])
+        setExtraStats({
+          deans: deansRes.data?.success ? (deansRes.data.deans?.length || 0) : 0,
+          refunds: refundsRes.data?.success ? (refundsRes.data.refunds?.length || refundsRes.data.pending?.length || 0) : 0,
+        })
+      } catch {
+        /* optional endpoints */
+      }
+    }
+    loadExtra()
+  }, [aToken, backendUrl])
 
-  // Initialize chart data from actual dashboard data (no random values)
   useEffect(() => {
-    if (dashData && dashData.chartData) {
-      // Use actual chart data from backend (starts at 0, updates live)
+    if (dashData?.chartData) {
       setChartData({
         patientGrowth: dashData.chartData.patientGrowth || { labels: [], values: [] },
         revenue: dashData.chartData.revenue || { labels: [], values: [] },
-        appointments: dashData.chartData.appointments || { labels: [], values: [] }
-      })
-    } else {
-      // Initialize with zeros if no data yet
-      const days = Array.from({ length: 30 }, (_, i) => {
-        const d = new Date()
-        d.setDate(d.getDate() - (29 - i))
-        return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
-      })
-
-      const hours = Array.from({ length: 24 }, (_, i) => {
-        return `${i.toString().padStart(2, '0')}:00`
-      })
-
-      setChartData({
-        patientGrowth: { labels: days, values: new Array(30).fill(0) },
-        revenue: { labels: days, values: new Array(30).fill(0) },
-        appointments: { labels: hours, values: new Array(24).fill(0) }
+        appointments: dashData.chartData.appointments || { labels: [], values: [] },
       })
     }
   }, [dashData])
 
-  // Listen for real-time updates
   useEffect(() => {
-    if (socket && isConnected) {
-      socket.on('new-appointment', (data) => {
-        toast.success(`🟢 New Appointment: ${data.patientName} at ${data.slotTime}`, {
-          position: 'top-right',
-          autoClose: 3000
-        })
-        // Refresh dashboard to update counts, revenue, and charts
-        getDashData()
-        if (getAllAppointments) getAllAppointments()
-      })
-
-      socket.on('appointments-deleted', (data) => {
-        console.log('📋 Appointments deleted:', data)
-        getDashData()
-        if (getAllAppointments) getAllAppointments()
-      })
-
-      socket.on('patient-count-updated', (count) => {
-        console.log('👥 Patient count updated:', count)
-      })
-
-      socket.on('revenue-updated', (data) => {
-        console.log('💰 Revenue updated:', data)
-      })
-
-      return () => {
-        socket.off('new-appointment')
-        socket.off('appointments-deleted')
-        socket.off('patient-count-updated')
-        socket.off('revenue-updated')
-      }
+    if (!socket || !isConnected) return
+    const refresh = () => {
+      getDashData()
+      if (getAllAppointments) getAllAppointments()
+    }
+    socket.on('new-appointment', (data) => {
+      toast.success(`New appointment: ${data.patientName} at ${data.slotTime}`, { autoClose: 3000 })
+      refresh()
+    })
+    socket.on('appointments-deleted', refresh)
+    return () => {
+      socket.off('new-appointment')
+      socket.off('appointments-deleted')
     }
   }, [socket, isConnected])
 
+  const loading = dashData === null
+  const data = dashData || {}
 
-  const formatTime = (date) => {
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
+  const totalDoctors = data.doctors || doctors?.length || 0
+  const activeDoctors = data.activeDoctors || doctors?.filter((d) => d.available).length || 0
+  const totalHospitals = data.hospitals || hospitals?.length || 0
+  const labsCount = labs?.length || 0
+  const bloodBanksCount = bloodBanks?.length || 0
+
+  const topHospitals = useMemo(() => {
+    return (hospitals || [])
+      .map((h) => ({
+        id: h._id || h.id,
+        name: h.name,
+        location: (h.address || '').split(',').slice(-2).join(',').trim() || h.address || '—',
+        doctors: h.doctors?.length || 0,
+        showOnHome: h.showOnHome,
+      }))
+      .sort((a, b) => b.doctors - a.doctors)
+      .slice(0, 5)
+  }, [hospitals])
+
+  const recentActivity = useMemo(() => {
+    const items = []
+    ;(data.latestAppointments || []).slice(0, 6).forEach((apt) => {
+      const patient = apt.userData?.name || 'Patient'
+      const doctor = apt.docData?.name || 'Doctor'
+      items.push({
+        id: `apt-${apt._id}`,
+        type: 'appointment',
+        title: 'New appointment booked',
+        detail: `${patient} with ${doctor}`,
+        time: apt.slotTime || '',
+      })
     })
-  }
-
-  const formatDate = (date) => {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    ;(doctors || []).slice(0, 3).forEach((doc) => {
+      items.push({
+        id: `doc-${doc._id}`,
+        type: 'doctor',
+        title: 'Doctor on platform',
+        detail: `${doc.name} · ${doc.speciality || 'General'}`,
+        time: '',
+      })
     })
-  }
+    return items.slice(0, 8)
+  }, [data.latestAppointments, doctors])
 
-  // Calculate stats from actual dashboard data - only show if appointments exist
-  // Default to 0 if no appointments have been made
-  const totalPatientsToday = (dashData?.patientsToday && dashData?.patientsToday > 0) ? dashData.patientsToday : 0
-  const totalAppointmentsToday = (dashData?.appointmentsToday && dashData?.appointmentsToday > 0) ? dashData.appointmentsToday : 0
-  const totalDoctors = dashData?.doctors || doctors?.length || 0
-  const activeDoctorsOnline = dashData?.activeDoctors || doctors?.filter(doc => doc.available).length || 0
-  const totalHospitals = dashData?.hospitals || hospitals?.length || 0
-  const todayRevenue = (dashData?.revenueToday && dashData?.revenueToday > 0) ? dashData.revenueToday : 0 // Revenue from today's appointments
+  const fmtInr = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
 
-  if (!dashData) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-64px)]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+      <AdminPageLayout>
+        <div className="mc-page-hero animate-pulse h-36 rounded-2xl bg-slate-200" />
+        <div className="mc-kpi-grid mc-kpi-grid--4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="mc-kpi-card animate-pulse h-24 bg-slate-100 rounded-xl" />
+          ))}
         </div>
-      </div>
+        <p className="text-center text-sm text-mc-text-muted py-8">Loading dashboard…</p>
+      </AdminPageLayout>
     )
   }
 
   return (
-    <div className='w-full bg-gradient-to-br from-gray-50 via-white to-indigo-50/30 p-4 sm:p-4 mobile-safe-area pb-6 min-h-screen'>
-      <div className='space-y-3 sm:space-y-4 animate-fade-in-up'>
-        {/* Live Clock Widget & Quick Access */}
-        <GlassCard className="p-3 sm:p-4 overflow-visible">
-          <div className='flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-3'>
-            <div className='flex items-center gap-2 sm:gap-3'>
-              <div className='bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg p-2 shadow-lg'>
-                <svg className='w-5 h-5 sm:w-6 sm:h-6 text-white' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800 tracking-wider'>{formatTime(currentTime)}</h2>
-                <p className='text-gray-500 text-[10px] sm:text-xs mt-0.5 flex items-center gap-1.5 flex-wrap'>
-                  <span className='w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse' />
-                  <span className='whitespace-nowrap'>Live Dashboard</span>
-                  <span className='hidden sm:inline'>•</span>
-                  <span className='text-[9px] sm:text-[10px]'>{formatDate(currentTime)}</span>
-                </p>
-              </div>
-            </div>
-          </div>
-        </GlassCard>
+    <AdminPageLayout>
+      <PageHero
+        title="MediChain Super Admin Dashboard"
+        subtitle="Real-time overview of platform performance and healthcare operations."
+        features={['Centralized Control', 'Real-time Insights', 'Better Outcomes']}
+      />
 
-        {/* Top Widgets - Animated Counters */}
-        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4'>
-          {/* 1. Revenue */}
-          <GlassCard
-            hover={true}
-            className="p-4 bg-white rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover-lift transition-all"
-            onClick={() => navigate('/revenue-analytics')}
-          >
-            <div className='bg-pink-500 rounded-2xl p-3 shadow-lg flex-shrink-0'>
-              <svg className='w-6 h-6 text-white' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className='flex flex-col min-w-0'>
-              <p className='text-xl sm:text-2xl font-bold text-gray-900 leading-tight truncate'>
-                <AnimatedCounter value={dashData?.revenueTotal || 0} prefix="₹" />
-              </p>
-              <p className='text-gray-500 text-[10px] sm:text-xs font-medium'>Revenue</p>
-              <p className='text-[9px] text-pink-600 font-semibold mt-0.5'>Today: ₹{todayRevenue}</p>
-            </div>
-          </GlassCard>
-
-          {/* 2. Total Appointments */}
-          <GlassCard
-            hover={true}
-            className="p-4 bg-white rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover-lift transition-all"
-            onClick={() => navigate('/all-appointments')}
-          >
-            <div className='bg-blue-500 rounded-2xl p-3 shadow-lg flex-shrink-0'>
-              <svg className='w-6 h-6 text-white' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </div>
-            <div className='flex flex-col min-w-0'>
-              <p className='text-xl sm:text-2xl font-bold text-gray-900 leading-tight'>
-                <AnimatedCounter value={dashData?.appointments || 0} />
-              </p>
-              <p className='text-gray-500 text-[10px] sm:text-xs font-medium'>Total Appointments</p>
-            </div>
-          </GlassCard>
-
-          {/* 3. Active Doctors */}
-          <GlassCard
-            hover={true}
-            className="p-4 bg-white rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover-lift transition-all"
-            onClick={() => navigate('/doctor-list?filter=available')}
-          >
-            <div className='bg-green-500 rounded-2xl p-3 shadow-lg flex-shrink-0'>
-              <svg className='w-6 h-6 text-white' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className='flex flex-col min-w-0'>
-              <p className='text-xl sm:text-2xl font-bold text-gray-900 leading-tight'>
-                <AnimatedCounter value={activeDoctorsOnline} /> / {totalDoctors}
-              </p>
-              <p className='text-gray-500 text-[10px] sm:text-xs font-medium'>Active Doctors</p>
-            </div>
-          </GlassCard>
-
-          {/* 4. Tie-Up Hospitals */}
-          <GlassCard
-            hover={true}
-            className="p-4 bg-white rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover-lift transition-all"
-            onClick={() => navigate('/hospital-tieups')}
-          >
-            <div className='bg-indigo-600 rounded-2xl p-3 shadow-lg flex-shrink-0'>
-              <svg className='w-6 h-6 text-white' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-            </div>
-            <div className='flex flex-col min-w-0'>
-              <p className='text-xl sm:text-2xl font-bold text-gray-900 leading-tight'>
-                <AnimatedCounter value={totalHospitals} />
-              </p>
-              <p className='text-gray-500 text-[10px] sm:text-xs font-medium'>Tie-Up Hospitals</p>
-            </div>
-          </GlassCard>
-
-          {/* 5. Appointments Today */}
-          <GlassCard
-            hover={true}
-            className="p-4 bg-white rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover-lift transition-all"
-            onClick={() => navigate('/all-appointments')}
-          >
-            <div className='bg-purple-600 rounded-2xl p-3 shadow-lg flex-shrink-0'>
-              <svg className='w-6 h-6 text-white' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div className='flex flex-col min-w-0'>
-              <p className='text-xl sm:text-2xl font-bold text-gray-900 leading-tight'>
-                <AnimatedCounter value={totalAppointmentsToday} />
-              </p>
-              <p className='text-gray-500 text-[10px] sm:text-xs font-medium'>Appointments Today</p>
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* Live Graphs Section - Equal Cards (Same Design Desktop & Mobile) */}
-        <div className='grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4'>
-          <GlassCard className="p-3 sm:p-4 flex flex-col lg:h-full w-full min-h-[260px]">
-            <h3 className='text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3 flex items-center gap-1.5'>
-              <svg className='w-5 h-5 sm:w-6 sm:h-6 text-indigo-600 flex-shrink-0' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-              <span className='text-sm sm:text-base lg:text-xl'>Patient Registration Trend</span>
-            </h3>
-            <div className="chart-container overflow-x-auto flex-1 min-h-0 w-full">
-              <LineChart data={chartData.patientGrowth} title="Patients" color="#667eea" />
-            </div>
-          </GlassCard>
-
-          <GlassCard className="p-3 sm:p-4 flex flex-col lg:h-full w-full min-h-[260px]">
-            <h3 className='text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3 flex items-center gap-1.5'>
-              <svg className='w-5 h-5 sm:w-6 sm:h-6 text-purple-600 flex-shrink-0' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              Revenue Trend (30 Days)
-            </h3>
-            <div className="chart-container flex-1 min-h-0 w-full">
-              <BarChart data={chartData.revenue} title="Revenue" color="#764ba2" />
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* Appointments Peak Hours - Full Width */}
-        <GlassCard className="p-3 sm:p-4 mt-3 sm:mt-4 min-h-[260px]">
-          <h3 className='text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3 flex items-center gap-1.5'>
-            <svg className='w-5 h-5 sm:w-6 sm:h-6 text-pink-600 flex-shrink-0' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            Appointments Peak Hours
-          </h3>
-          <div className="chart-container overflow-x-auto">
-            <AreaChart data={chartData.appointments} title="Distribution" color="#f093fb" />
-          </div>
-        </GlassCard>
-
-        {/* Quick Doctor Explorer - NEW Section */}
-        <div className='mt-6'>
-          <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4'>
-            <div>
-              <h3 className='text-xl font-black text-gray-800 flex items-center gap-2'>
-                <div className='w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center'>
-                  <svg className='w-5 h-5 text-indigo-600' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                Quick Doctor Explorer
-              </h3>
-              <p className='text-xs text-gray-500 font-medium ml-10'>Find and monitor any professional on the platform</p>
-            </div>
-            
-            <div className='relative w-full sm:w-72'>
-              <input 
-                type="text"
-                value={docSearch}
-                onChange={(e) => setDocSearch(e.target.value)}
-                placeholder='Search by name or speciality...'
-                className='w-full pl-10 pr-4 py-2.5 bg-white border-2 border-gray-100 rounded-2xl text-sm font-bold focus:border-indigo-500 outline-none transition-all shadow-sm'
-              />
-              <svg className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-          </div>
-
-          <div className='flex gap-4 overflow-x-auto pb-4 custom-scrollbar snap-x'>
-            {(doctors || [])
-              .filter(doc => !docSearch || doc.name.toLowerCase().includes(docSearch.toLowerCase()) || doc.speciality.toLowerCase().includes(docSearch.toLowerCase()))
-              .slice(0, 20) // Show top 20 or filtered results
-              .map((doc, idx) => (
-                <div 
-                  key={doc._id || idx}
-                  className='min-w-[200px] sm:min-w-[240px] bg-white rounded-3xl p-4 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group snap-start cursor-pointer'
-                  onClick={() => navigate('/doctor-list')}
-                >
-                  <div className='relative mb-3'>
-                    <img src={doc.image} className='w-full h-32 object-cover rounded-2xl bg-indigo-50' alt='' />
-                    <div className={`absolute top-2 right-2 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm ${doc.available ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                      {doc.available ? 'Online' : 'Offline'}
-                    </div>
-                  </div>
-                  <h4 className='font-bold text-gray-800 text-sm truncate group-hover:text-indigo-600 transition-colors'>{doc.name}</h4>
-                  <p className='text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-2'>{doc.speciality}</p>
-                  {doc.hospital_name && (
-                    <div className='flex items-center gap-1.5 py-1.5 px-2 bg-indigo-50/50 rounded-lg'>
-                      <svg className='w-3 h-3 text-indigo-500 shrink-0' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                      <span className='text-[9px] font-bold text-indigo-600 truncate'>{doc.hospital_name}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-              
-              {(!doctors || doctors.length === 0) && (
-                <div className='w-full py-12 flex flex-col items-center justify-center bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-200'>
-                  <div className='w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3 text-gray-400'>
-                    <svg className='w-6 h-6' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                  </div>
-                  <p className='text-sm font-bold text-gray-400'>No doctors registered yet</p>
-                </div>
-              )}
-          </div>
-        </div>
-
+      <div className="mc-kpi-grid mc-kpi-grid--4">
+        <KpiCard
+          label="Total Revenue"
+          value={<AnimatedCounter value={data.revenueTotal || 0} prefix="₹" />}
+          iconBg="bg-emerald-100 text-emerald-600"
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+          trendLabel={`Today ${fmtInr(data.revenueToday)}`}
+          onClick={() => navigate('/revenue-analytics')}
+        />
+        <KpiCard
+          label="Total Appointments"
+          value={<AnimatedCounter value={data.appointments || 0} />}
+          iconBg="bg-sky-100 text-sky-600"
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+          onClick={() => navigate('/all-appointments')}
+        />
+        <KpiCard
+          label="Active Doctors"
+          value={<AnimatedCounter value={activeDoctors} />}
+          iconBg="bg-teal-100 text-teal-600"
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+          onClick={() => navigate('/doctor-list?filter=available')}
+        />
+        <KpiCard
+          label="Tie-up Hospitals"
+          value={<AnimatedCounter value={totalHospitals} />}
+          iconBg="bg-violet-100 text-violet-600"
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
+          onClick={() => navigate('/hospital-tieups')}
+        />
+        <KpiCard
+          label="Active Deans"
+          value={<AnimatedCounter value={extraStats.deans} />}
+          iconBg="bg-indigo-100 text-indigo-600"
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" /></svg>}
+          onClick={() => navigate('/manage-deans')}
+        />
+        <KpiCard
+          label="Labs Connected"
+          value={<AnimatedCounter value={labsCount} />}
+          iconBg="bg-orange-100 text-orange-600"
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>}
+          onClick={() => navigate('/manage-labs')}
+        />
+        <KpiCard
+          label="Blood Banks Connected"
+          value={<AnimatedCounter value={bloodBanksCount} />}
+          iconBg="bg-rose-100 text-rose-600"
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>}
+          onClick={() => navigate('/manage-blood-banks')}
+        />
+        <KpiCard
+          label="Refund Requests"
+          value={<AnimatedCounter value={extraStats.refunds} />}
+          iconBg="bg-amber-100 text-amber-600"
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>}
+          onClick={() => navigate('/refund-management')}
+        />
       </div>
-    </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <McCard title="Patient Registration Trend" bodyClassName="min-h-[240px]">
+          <LineChart data={chartData.patientGrowth} title="Patients" color="#0ea5e9" />
+        </McCard>
+        <McCard title="Revenue Trend (30 Days)" bodyClassName="min-h-[240px]">
+          <AreaChart data={chartData.revenue} title="Revenue" color="#0ea5e9" />
+        </McCard>
+        <McCard title="Appointments Peak Hours" bodyClassName="min-h-[240px]">
+          <BarChart data={chartData.appointments} title="Appointments" color="#8b5cf6" />
+        </McCard>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <McCard title="Top Performing Hospitals" noPadding bodyClassName="overflow-x-auto">
+          <table className="mc-data-table">
+            <thead>
+              <tr>
+                <th>Hospital</th>
+                <th>Location</th>
+                <th>Doctors</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topHospitals.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="text-center text-mc-text-muted py-6">No hospitals yet</td>
+                </tr>
+              ) : (
+                topHospitals.map((h) => (
+                  <tr key={h.id} className="cursor-pointer" onClick={() => navigate('/hospital-tieups')}>
+                    <td className="font-semibold">{h.name}</td>
+                    <td className="text-mc-text-muted text-xs max-w-[120px] truncate">{h.location}</td>
+                    <td>{h.doctors}</td>
+                    <td>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${h.showOnHome ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {h.showOnHome ? 'Featured' : 'Active'}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </McCard>
+
+        <McCard title="Recent Activity">
+          <ul className="space-y-3">
+            {recentActivity.length === 0 ? (
+              <li className="text-sm text-mc-text-muted py-4 text-center">No recent activity</li>
+            ) : (
+              recentActivity.map((item) => (
+                <li key={item.id} className="flex gap-3 items-start">
+                  <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${item.type === 'appointment' ? 'bg-sky-500' : 'bg-violet-500'}`} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-mc-text">{item.title}</p>
+                    <p className="text-xs text-mc-text-muted truncate">{item.detail}</p>
+                    {item.time && <p className="text-[10px] text-mc-text-muted mt-0.5">{item.time}</p>}
+                  </div>
+                </li>
+              ))
+            )}
+          </ul>
+        </McCard>
+
+        <McCard title="Quick Actions">
+          <div className="grid grid-cols-2 gap-2">
+            {QUICK_ACTIONS.map((action) => (
+              <button
+                key={action.path}
+                type="button"
+                onClick={() => navigate(action.path)}
+                className={`${action.bg} text-white text-xs font-bold rounded-xl px-3 py-4 text-center hover:opacity-90 transition-opacity shadow-sm`}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        </McCard>
+      </div>
+    </AdminPageLayout>
   )
 }
 

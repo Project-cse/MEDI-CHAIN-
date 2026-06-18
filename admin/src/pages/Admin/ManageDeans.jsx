@@ -4,6 +4,7 @@ import { AdminContext } from '../../context/AdminContext'
 import { toast } from 'react-toastify'
 import GlassCard from '../../components/ui/GlassCard'
 import { formatPublicId, publicIdBadgeClass } from '../../utils/publicIdDisplay'
+import { AdminPageLayout, PageHero, KpiCard, McCard, FilterToolbar, McSearch, McButton, StatusPill } from '../../components/mc'
 
 const ManageDeans = () => {
   const { aToken, hospitals, getAllHospitals } = useContext(AdminContext)
@@ -86,30 +87,57 @@ const ManageDeans = () => {
     setShowEmails(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
+  const [search, setSearch] = useState('')
+
+  const filteredDeans = deans.filter((d) => {
+    const q = search.toLowerCase()
+    if (!q) return true
+    return (
+      (d.name || '').toLowerCase().includes(q) ||
+      (d.email || '').toLowerCase().includes(q) ||
+      (d.hospital_name || '').toLowerCase().includes(q)
+    )
+  })
+
+  const activeCount = deans.length
+  const hospitalCount = new Set(deans.map((d) => d.hospital_id).filter(Boolean)).size
+
   return (
-    <div className='w-full bg-gradient-to-br from-gray-50 via-white to-emerald-50/20 p-4 sm:p-6 mobile-safe-area pb-6 min-h-full'>
-      <div className='max-w-6xl mx-auto space-y-5'>
+    <AdminPageLayout>
+        <PageHero
+          title="Manage Deans"
+          subtitle="View, manage and oversee dean accounts across all hospitals on the platform."
+          features={['Centralized Oversight', 'Secure Access Control', 'Performance Monitoring', 'Seamless Collaboration']}
+        />
 
-        {/* Page Header */}
-        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3'>
-          <div>
-            <h1 className='text-2xl font-bold text-gray-900'>Manage DEANs</h1>
-            <p className='text-sm text-gray-500 mt-0.5'>Assign Hospital Controllers to manage specific hospitals</p>
-          </div>
-          <button onClick={() => setShowForm(v => !v)}
-            className='px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold rounded-xl shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5 active:scale-95 transition-all text-sm'>
-            {showForm ? '✕ Cancel' : '+ Create New DEAN'}
-          </button>
+        <div className="mc-kpi-grid mc-kpi-grid--4">
+          <KpiCard label="Total Deans" value={deans.length} iconBg="bg-violet-100 text-violet-600"
+            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+          />
+          <KpiCard label="Active Deans" value={activeCount} iconBg="bg-emerald-100 text-emerald-600"
+            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+          />
+          <KpiCard label="Hospitals Assigned" value={hospitalCount} iconBg="bg-sky-100 text-sky-600"
+            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
+          />
+          <KpiCard label="Pending Approvals" value={0} iconBg="bg-amber-100 text-amber-600"
+            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+          />
         </div>
 
-        {/* Info Banner */}
-        <div className='bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-4 text-white flex items-start gap-3'>
-          <span className='text-2xl mt-0.5'>🏥</span>
-          <div>
-            <p className='font-bold'>What is a DEAN?</p>
-            <p className='text-sm text-emerald-100 mt-0.5'>A DEAN (Hospital Controller) manages day-to-day operations of a specific hospital — doctors, appointments, and settings — independently from global admin control.</p>
-          </div>
-        </div>
+        <FilterToolbar
+          actions={
+            <McButton onClick={() => setShowForm((v) => !v)}>
+              {showForm ? '✕ Cancel' : '+ Add New Dean'}
+            </McButton>
+          }
+        >
+          <McSearch
+            placeholder="Search by name, email or hospital..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </FilterToolbar>
 
         {/* Create DEAN Form */}
         {showForm && (
@@ -175,7 +203,7 @@ const ManageDeans = () => {
                 <p className='text-sm text-gray-500 font-medium'>Fetching controllers...</p>
               </div>
             </div>
-          ) : deans.length === 0 ? (
+          ) : filteredDeans.length === 0 ? (
             <div className='py-20 text-center bg-white rounded-2xl border border-dashed border-gray-200'>
               <p className='text-5xl mb-4'>🎓</p>
               <p className='text-gray-500 font-bold text-lg'>No DEAN accounts yet.</p>
@@ -185,95 +213,56 @@ const ManageDeans = () => {
             <>
               {/* Desktop View (Table) */}
               <div className='hidden lg:block'>
-                <GlassCard className='overflow-hidden border-none shadow-sm'>
-                   <div className='px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white/60'>
-                    <h2 className='font-bold text-gray-800 flex items-center gap-2'>
-                        <svg className='w-5 h-5 text-emerald-600' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        All Controller Accounts
-                    </h2>
-                    <span className='text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100'>{deans.length} Controllers</span>
-                  </div>
-                  <div className='overflow-x-auto'>
-                    <table className='w-full text-sm'>
-                      <thead className='bg-gray-50/80'>
+                <McCard title={`Dean Accounts (${filteredDeans.length})`} noPadding bodyClassName="overflow-x-auto">
+                    <table className='mc-data-table'>
+                      <thead>
                         <tr>
-                          {['Controller Name', 'DEAN ID', 'Email Access', 'Assigned Hospital', 'Established', 'Actions'].map(h => (
-                            <th key={h} className='px-6 py-4 text-left text-[11px] font-bold text-gray-400 uppercase tracking-widest'>{h}</th>
+                          {['#', 'Dean', 'Assigned Hospital', 'Email', 'Access Status', 'Established', 'Actions'].map(h => (
+                            <th key={h}>{h}</th>
                           ))}
                         </tr>
                       </thead>
-                      <tbody className='divide-y divide-gray-50 bg-white/40'>
-                        {deans.map((dean, i) => (
-                          <tr key={dean.id || i} className='hover:bg-emerald-50/40 transition-colors group'>
-                            <td className='px-6 py-4'>
+                      <tbody>
+                        {filteredDeans.map((dean, i) => (
+                          <tr key={dean.id || i}>
+                            <td>{i + 1}</td>
+                            <td>
                               <div className='flex items-center gap-3'>
-                                <div className='w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform'>
+                                <div className='w-10 h-10 bg-gradient-to-br from-sky-500 to-cyan-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0'>
                                   {(dean.name || 'D')[0].toUpperCase()}
                                 </div>
-                                <span className='font-bold text-gray-900'>{dean.name}</span>
-                              </div>
-                            </td>
-                            <td className='px-6 py-4'>
-                              <span className={publicIdBadgeClass('emerald')}>
-                                {formatPublicId(dean, 'DEA', dean.id)}
-                              </span>
-                            </td>
-                            <td className='px-6 py-4'>
-                              <div className='flex items-center justify-between bg-slate-50/60 border border-slate-100 px-4 py-2 rounded-2xl max-w-[280px] min-w-[240px] group/email shadow-sm hover:shadow transition-all duration-300'>
-                                <div className='flex flex-col gap-0.5'>
-                                  <span className='text-[9px] text-slate-400 font-black uppercase tracking-wider'>DEAN Identity</span>
-                                  <span className='text-xs font-bold text-slate-700 font-mono tracking-tight transition-all duration-300'>
-                                    {showEmails[dean.id] ? dean.email : dean.email.split('@')[0].slice(0, 4) + '••••••••@' + dean.email.split('@')[1]}
-                                  </span>
-                                </div>
-                                <div className='flex items-center gap-1 opacity-60 group-hover/email:opacity-100 transition-opacity duration-300 ml-2'>
-                                  <button onClick={() => toggleEmail(dean.id)}
-                                    className={`p-1.5 rounded-lg transition-all shadow-sm ${showEmails[dean.id] ? 'bg-orange-100/80 text-orange-600 hover:bg-orange-600 hover:text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                                    title={showEmails[dean.id] ? "Hide Email" : "Reveal Email"}>
-                                    {showEmails[dean.id] ? (
-                                      <svg className='w-3.5 h-3.5' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" /></svg>
-                                    ) : (
-                                      <svg className='w-3.5 h-3.5' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                    )}
-                                  </button>
-                                  {showEmails[dean.id] && (
-                                    <button onClick={() => copyToClipboard(dean.email, 'Email')}
-                                      className='p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm'
-                                      title="Copy Email">
-                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                                    </button>
-                                  )}
+                                <div>
+                                  <span className='font-bold block'>{dean.name}</span>
+                                  <span className='text-xs text-mc-text-muted'>Hospital Dean</span>
                                 </div>
                               </div>
                             </td>
-
-                            <td className='px-6 py-4'>
-                              <div className='flex flex-col'>
-                                <span className='inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-emerald-100 text-emerald-700 rounded-lg text-xs font-bold shadow-sm'>
-                                    🏥 {dean.hospital_name || `ID: ${dean.hospital_id}`}
-                                </span>
-                              </div>
+                            <td>
+                              <span className='text-sm font-medium'>{dean.hospital_name || `ID: ${dean.hospital_id}`}</span>
                             </td>
-                            <td className='px-6 py-4 text-gray-400 text-xs font-medium'>
+                            <td>
+                              <span className='text-sm text-mc-text-muted'>{dean.email}</span>
+                            </td>
+                            <td><StatusPill status="active">Active</StatusPill></td>
+                            <td className='text-mc-text-muted text-xs'>
                               {dean.created_at ? new Date(dean.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                             </td>
-                            <td className='px-6 py-4'>
+                            <td>
                               <button onClick={() => handleDelete(dean.id, dean.name)}
-                                className='px-4 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-lg transition-all opacity-0 group-hover:opacity-100'>
-                                Remove Account
+                                className='text-xs font-bold text-rose-600 hover:text-rose-700'>
+                                Remove
                               </button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                  </div>
-                </GlassCard>
+                </McCard>
               </div>
 
-              {/* Mobile View (Cards) */}
+              {/* Mobile View (Cards) - keep enhanced cards */}
               <div className='lg:hidden space-y-4'>
-                 {deans.map((dean, i) => (
+                 {filteredDeans.map((dean, i) => (
                     <GlassCard key={dean.id || i} className='p-4 border-none shadow-sm relative overflow-hidden group'>
                          {/* Header Stripe */}
                         <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
@@ -341,8 +330,7 @@ const ManageDeans = () => {
             </>
           )}
         </div>
-      </div>
-    </div>
+    </AdminPageLayout>
   )
 }
 
