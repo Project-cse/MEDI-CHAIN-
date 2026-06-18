@@ -61,16 +61,15 @@ const DeanDashboard = () => {
         {(() => {
           const bannerUrl = hospital?.background_image || hospital?.backgroundImage || null
           return (
-            <div className='relative overflow-hidden rounded-2xl p-4 sm:p-6 text-white shadow-xl'>
-              {bannerUrl ? (
+            <div className='relative overflow-hidden rounded-2xl p-4 sm:p-6 text-white shadow-xl min-h-[140px] sm:min-h-[160px] flex items-center bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-600'>
+              {bannerUrl && (
                 <>
-                  <img src={bannerUrl} alt='Hospital banner' className='absolute inset-0 w-full h-full object-cover' />
-                  <div className='absolute inset-0 bg-gradient-to-r from-slate-900/85 via-slate-900/55 to-slate-900/25' />
+                  {/* Photo only on the right side — the left stays a solid brand panel for the text */}
+                  <img src={bannerUrl} alt='Hospital banner' className='absolute inset-y-0 right-0 h-full w-1/2 sm:w-2/5 object-cover object-center' />
+                  <div className='absolute inset-y-0 right-0 w-1/2 sm:w-2/5 bg-gradient-to-r from-teal-600 via-teal-600/40 to-transparent' />
                 </>
-              ) : (
-                <div className='absolute inset-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600' />
               )}
-              <div className='relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3'>
+              <div className='relative z-10 w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3'>
                 <div>
                   <p className='text-xs font-semibold uppercase tracking-widest text-white/80 mb-1'>Dashboard</p>
                   <h1 className='text-2xl sm:text-3xl font-bold drop-shadow'>{hospital?.name || deanInfo?.hospitalName || 'Your Hospital'}</h1>

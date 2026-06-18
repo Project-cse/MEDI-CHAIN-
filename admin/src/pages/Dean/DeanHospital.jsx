@@ -137,14 +137,13 @@ const DeanHospital = () => {
       />
 
       {/* Hospital account banner — uses uploaded image, falls back to teal/blue gradient */}
-      <div className='relative overflow-hidden rounded-2xl shadow-lg min-h-[150px] flex items-end'>
-        {bannerUrl ? (
+      <div className='relative overflow-hidden rounded-2xl shadow-lg min-h-[150px] flex items-end bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-600'>
+        {bannerUrl && (
           <>
-            <img src={bannerUrl} alt='Hospital banner' className='absolute inset-0 w-full h-full object-cover' />
-            <div className='absolute inset-0 bg-gradient-to-r from-slate-900/85 via-slate-900/55 to-slate-900/20' />
+            {/* Photo only on the right side — the left stays a solid brand panel for the text */}
+            <img src={bannerUrl} alt='Hospital banner' className='absolute inset-y-0 right-0 h-full w-1/2 sm:w-2/5 object-cover object-center' />
+            <div className='absolute inset-y-0 right-0 w-1/2 sm:w-2/5 bg-gradient-to-r from-teal-600 via-teal-600/40 to-transparent' />
           </>
-        ) : (
-          <div className='absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600' />
         )}
         <div className='relative z-10 flex items-center gap-4 p-5 w-full'>
           <div className='w-14 h-14 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center text-white shrink-0'>
