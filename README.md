@@ -1,6 +1,6 @@
 # MEDCLUES Healthcare Platform
 
-**MEDCLUES** (formerly MediChain+) is a full-stack healthcare management ecosystem connecting **patients**, **doctors**, **hospital deans**, and **super administrators**. It supports appointment booking, medical records, real-time queue tracking, Razorpay payments, Agora video consultations, AI medical chat, emergency services, labs, blood banks, and multi-portal administration.
+**MEDCLUES** (formerly MediChain+) is a full-stack healthcare management ecosystem connecting **patients**, **doctors**, **hospital receptionists**, **hospital deans**, and **super administrators**. It supports appointment booking, medical records, real-time queue tracking, Razorpay payments, Agora video consultations, AI medical chat, emergency services, labs, blood banks, front-desk reception operations, and multi-portal administration.
 
 ---
 
@@ -34,7 +34,7 @@
 │  frontend/   │   admin/     │    mobile/      │    flutter_mobile/       │
 │  React+Vite  │  React+Vite  │  Expo RN 54     │  Flutter (MEDCLUES) ★    │
 │  Patient Web │ Admin/Dean/  │ Patient + Staff │  Primary mobile app      │
-│              │ Doctor       │ mini-portals    │  + Emergency Module      │
+│              │ Doctor/Recep │ mini-portals    │  + Emergency Module      │
 └──────┬───────┴──────┬───────┴────────┬────────┴────────────┬─────────────┘
        │              │                │                     │
        └──────────────┴────────────────┴─────────────────────┘
@@ -68,7 +68,7 @@
 | Folder | Name | Stack | Users | Default Dev Port |
 |--------|------|-------|-------|------------------|
 | `frontend/` | Patient Web Portal | React 18, Vite 7, Tailwind, Framer Motion | Patients | `:5173` |
-| `admin/` | Admin & Staff Portal | React 18, Vite 5, Tailwind, Chart.js | Super Admin, Dean, Doctor | `:5174` |
+| `admin/` | Admin & Staff Portal | React 18, Vite 5, Tailwind, Chart.js | Super Admin, Dean, Doctor, Receptionist | `:5174` |
 | `mobile/` | Expo Mobile (legacy) | Expo 54, React Native, Expo Router | Patient + Doctor/Dean/Admin | Expo dev server |
 | `flutter_mobile/` | MEDCLUES Flutter App | Flutter, Riverpod, go_router, Dio | Patients | Device / Chrome |
 | `fastapi_back/` | REST API | FastAPI, SQLAlchemy, asyncpg | All clients | `:5000` |
@@ -103,7 +103,7 @@
 
 ### Admin & Doctor Portal (`admin/`)
 
-Single login page with **three portal cards** (Super Admin / Dean / Doctor).
+Single login page with **four portal cards** (Super Admin / Dean / Doctor / Receptionist).
 
 #### Super Admin
 
@@ -117,6 +117,7 @@ Single login page with **three portal cards** (Super Admin / Dean / Doctor).
 | Hospital Tie-ups | Hospital CRUD, embedded doctors, per-hospital appointment policies |
 | Manage Deans | Dean account management per hospital (`DEA…` public IDs) |
 | Manage Admins | Admin account list (`ADM…` public IDs) |
+| Manage Receptionists | Global receptionist management across all hospitals (create/disable/reset/remove, filter by hospital) |
 | Manage Labs | Diagnostic lab CRUD |
 | Manage Blood Banks | Blood bank CRUD |
 | Manage Users | Patient user management, trust score and risk level |
@@ -136,6 +137,7 @@ Single login page with **three portal cards** (Super Admin / Dean / Doctor).
 | Dean Add Doctor | Add doctor to own hospital |
 | Dean Hospital | Hospital profile update |
 | Reception Scan | Hospital-scoped QR check-in via `/api/reception/scan` |
+| Manage Receptionists | Create/disable/reset/remove receptionists for the dean's own hospital |
 | Grace Reschedules | Approve/reject paid no-show next-day requests |
 
 #### Doctor Portal
@@ -151,6 +153,28 @@ Single login page with **three portal cards** (Super Admin / Dean / Doctor).
 | Complete Consultation | Diagnosis, prescription, notes, advice, follow-up date → syncs to patient records |
 
 **Shared:** Real-time queue (`QueueManager` + Socket.IO), patient details modal, reports viewer, appointment email modal, PDF/Excel export, mobile-responsive sidebar.
+
+#### Receptionist Portal (per-hospital front desk)
+
+Hospital-scoped operational desk. Every page only shows data for the receptionist's own hospital (enforced server-side via `hospital_id` in the JWT). Pages live in `admin/src/pages/Reception/`.
+
+| Page | Features |
+|------|----------|
+| Reception Dashboard | Daily KPIs (today's appointments, waiting, in-consult, completed, collections), quick actions, live queue table |
+| Online Bookings | Tabbed online appointments, trust-score verification, token generation, check-in |
+| Walk-In Registration | Register new/existing walk-in patient → pick doctor → collect payment → token |
+| QR Check-In | Scan booking QR or enter booking ID to check a patient in |
+| Queue Management | Per-doctor live queue across Waiting / Ready / In-Consultation / Completed |
+| Consultation Summary | Patient + appointment summary, verification status, prior visits |
+| Patients | Search/lookup patient records |
+| Follow-Ups | Eligible follow-up visits, use a follow-up (no new payment) |
+| Payments | Daily collection, refund requests |
+| Refund Requests | Pending refund queue for the hospital |
+| No-Shows | Patients marked no-show |
+| Reports | Daily front-desk activity overview |
+| Settings | Account details + logout |
+
+**Receptionist management:** Deans manage their own hospital's receptionists from **Dean → Manage Receptionists**; Super Admin manages receptionists for all hospitals from **Admin → Manage Receptionists** (create, disable/enable, reset password, remove).
 
 ---
 
@@ -263,7 +287,7 @@ PMS FNL 2/
 │   │   ├── controllers/      # Business logic (lifecycle, payments, consultations)
 │   │   ├── models/           # DB models + hospital appointment policies
 │   │   ├── services/         # Lifecycle, trust score, refunds, QR scan, Agora, queue
-│   │   ├── middleware/       # JWT auth (user/admin/doctor/dean)
+│   │   ├── middleware/       # JWT auth (user/admin/doctor/dean/receptionist)
 │   │   └── config/           # DB, settings
 │   ├── scripts/              # run_migrations.py, maintenance scripts
 │   └── scratch/              # DB migration/debug utilities
@@ -445,6 +469,15 @@ See **[flutter_mobile/README.md](flutter_mobile/README.md)** for complete setup.
 | Email | `doc.arjith@medclues.com` |
 | Password | `arjith@medclues` |
 
+### Receptionist Portal (per-hospital front desk — demo account)
+
+| Field | Value |
+|-------|--------|
+| Email | `reception@medclues.com` |
+| Password | `Reception@123` |
+
+> Receptionists are created by the **Dean** (own hospital) or **Super Admin** (any hospital) from the *Manage Receptionists* page. Each receptionist is permanently scoped to one hospital and only ever sees that hospital's data. On the login page, select the **Receptionist** portal card.
+
 ### Credential Reference Files (sensitive — do not commit publicly)
 
 | File | Contents |
@@ -467,7 +500,7 @@ Base URL: `http://localhost:5000` (or your LAN IP)
 | `/api/admin` | Super admin login, dashboard, doctors/deans/admins/users CRUD, revenue, refunds, hospital policies, export |
 | `/api/dean` | Dean login, hospital-scoped dashboard, doctors, appointments, patients |
 | `/api/doctor` | Doctor login, appointments, queue, consultations, Agora tokens, slots |
-| `/api/reception` | QR scan check-in, grace reschedule approve/reject (dean/admin) |
+| `/api/reception` | Receptionist login, hospital-scoped dashboard, online bookings, walk-in registration, verification, QR/booking-ID check-in, queue, follow-ups, payments, refund requests, no-shows, consultation summary, doctor list; plus dean/admin receptionist management (create/list/toggle/reset/delete) and legacy QR scan + grace reschedule |
 | `/api/appointments` | Public appointment lookup by booking ID (`BK…`) |
 | `/api/payments` | Razorpay order/create/verify, history, checkout |
 | `/api/health-records` | Upload, list, delete patient records |
@@ -503,6 +536,7 @@ Base URL: `http://localhost:5000` (or your LAN IP)
 | Super Admin | `aToken` | `POST /api/admin/login` |
 | Doctor | `dToken` | `POST /api/doctor/login` |
 | Dean | `deanToken` | `POST /api/dean/login` |
+| Receptionist | `recToken` (carries `hospital_id`) | `POST /api/reception/login` |
 
 Headers: `Authorization: Bearer <token>` and `token: <token>`
 
@@ -587,6 +621,10 @@ python scripts/run_migrations.py
 | `013_public_ids` | Public ID columns and backfill |
 | `014_appointment_lifecycle` | Lifecycle columns, hospital policies |
 | `015_appointment_lifecycle_extended` | Refunds, grace requests, trust score, visit log |
+| `017_hospital_background_image` | Hospital banner image column |
+| `018_doctor_schedule` | Doctor OP timings + available days |
+| `019_vc_chat` | In-call video-consult chat messages |
+| `020_receptionist_panel` | Receptionists table + reception desk columns on appointments |
 
 Rollbacks live in `fastapi_back/migrations/rollbacks/`. Full list: [fastapi_back/migrations/README.md](fastapi_back/migrations/README.md).
 
@@ -657,5 +695,6 @@ Details: [flutter_mobile/README.md — Emergency Module](flutter_mobile/README.m
 
 - Keep all `.env` files and credential markdown files **out of public repositories**
 - Healthcare data handled per MEDCLUES protocol standards
-- Role-based access: patients, doctors, deans, and admins have isolated data scopes
+- Role-based access: patients, doctors, receptionists, deans, and admins have isolated data scopes
 - Dean accounts are restricted to their own hospital's doctors and patients
+- Receptionist accounts are restricted to a single hospital's front-desk data (bookings, queue, payments)
