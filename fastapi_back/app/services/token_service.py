@@ -9,7 +9,7 @@ from jose import jwt, JWTError
 
 from app.config.config import settings
 
-VALID_ROLES = frozenset({"patient", "doctor", "dean", "admin"})
+VALID_ROLES = frozenset({"patient", "doctor", "dean", "admin", "receptionist"})
 
 
 def _access_secret() -> str:
@@ -49,7 +49,7 @@ def create_access_token(
     }
     if role == "admin":
         payload["email"] = email
-    elif role == "dean":
+    elif role in ("dean", "receptionist"):
         payload["id"] = user_id
         payload["hospital_id"] = hospital_id
     else:
@@ -78,7 +78,7 @@ def create_refresh_token(
     if role == "admin":
         payload["email"] = email
         user_key = str(email).strip().lower()
-    elif role == "dean":
+    elif role in ("dean", "receptionist"):
         payload["id"] = user_id
         payload["hospital_id"] = hospital_id
         user_key = str(user_id)

@@ -252,15 +252,18 @@ async def refresh_tokens(refresh_token: str | None, role: str, request=None):
         user_key = str(email).strip().lower()
         user_id = None
         hospital_id = None
-    elif role == "dean":
+    elif role in ("dean", "receptionist"):
         user_id = payload.get("id")
         hospital_id = payload.get("hospital_id")
-        if user_id is None or hospital_id is None:
+        if user_id is None:
             return {"success": False, "message": "Invalid refresh token"}
         access = token_service.create_access_token(
-            "dean", user_id=int(user_id), hospital_id=int(hospital_id)
+            role,
+            user_id=int(user_id),
+            hospital_id=int(hospital_id) if hospital_id is not None else None,
         )
         user_key = str(user_id)
+        email = None
     else:
         from app.utils.ownership import coerce_user_id
 

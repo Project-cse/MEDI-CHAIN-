@@ -117,6 +117,34 @@ async def auth_doctor(request: Request, token: fastapi.security.HTTPAuthorizatio
     except JWTError:
         raise HTTPException(status_code=401, detail="Not authorized, login again")
 
+async def auth_reception(request: Request, token: fastapi.security.HTTPAuthorizationCredentials = Depends(security)):
+    """Extract and validate a RECEPTIONIST JWT. Returns dict with id & hospital_id."""
+    token_str = token.credentials if token else None
+    if not token_str:
+        for header_key in ["rectoken", "reception-token", "token"]:
+            token_str = request.headers.get(header_key)
+            if token_str:
+                break
+    if not token_str:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and not auth_header.startswith("Bearer "):
+            token_str = auth_header
+    if not token_str:
+        raise HTTPException(status_code=401, detail="No receptionist token provided")
+    try:
+        secret = settings.JWT_SECRET.strip('"').strip("'")
+        payload = jwt.decode(token_str, secret, algorithms=["HS256"])
+        verify_access_payload(payload)
+        if payload.get("role") != "receptionist":
+            raise HTTPException(status_code=403, detail="Access denied: receptionist role required")
+        rec_id = payload.get("id")
+        hospital_id = payload.get("hospital_id")
+        if rec_id is None:
+            raise HTTPException(status_code=401, detail="Invalid receptionist token")
+        return {"id": rec_id, "hospital_id": hospital_id}
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Not authorized, login again")
+
 async def auth_dean(request: Request, token: fastapi.security.HTTPAuthorizationCredentials = Depends(security)):
     """Extract and validate a DEAN JWT. Returns dict with id & hospital_id."""
     token_str = token.credentials if token else None

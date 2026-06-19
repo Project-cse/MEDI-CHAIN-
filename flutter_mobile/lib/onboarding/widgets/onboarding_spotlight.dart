@@ -199,7 +199,12 @@ class _OnboardingSpotlightState extends State<OnboardingSpotlight>
                 ),
               ),
             ),
-            // Floating tooltip (only interactive layer — scrim does not block page taps)
+            // Freeze the page behind the tour: absorb all touches so only the
+            // tooltip buttons (rendered above) remain interactive.
+            const Positioned.fill(
+              child: ModalBarrier(dismissible: false, color: Colors.transparent),
+            ),
+            // Floating tooltip (only interactive layer — sits above the barrier)
             Positioned(
               left: layout.offset.dx,
               top: layout.offset.dy,

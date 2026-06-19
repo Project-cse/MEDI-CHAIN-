@@ -191,6 +191,94 @@ const DeanContextProvider = ({ children }) => {
     }
   };
 
+  // ── Receptionists ────────────────────────────────────────────────────────
+  const [receptionists, setReceptionists] = useState([]);
+
+  const getReceptionists = async () => {
+    try {
+      const { data } = await axios.get(`${backendUrl}/api/reception/manage`, {
+        headers: authHeader,
+      });
+      if (data.success) setReceptionists(data.receptionists || []);
+      else toast.error(data.message);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const addReceptionist = async (payload) => {
+    try {
+      const { data } = await axios.post(
+        `${backendUrl}/api/reception/manage`,
+        payload,
+        { headers: authHeader }
+      );
+      if (data.success) {
+        toast.success(data.message || "Receptionist created");
+        await getReceptionists();
+        return true;
+      }
+      toast.error(data.message);
+      return false;
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message);
+      return false;
+    }
+  };
+
+  const toggleReceptionist = async (recId, isActive) => {
+    try {
+      const { data } = await axios.post(
+        `${backendUrl}/api/reception/manage/${recId}/toggle`,
+        { isActive },
+        { headers: authHeader }
+      );
+      if (data.success) {
+        await getReceptionists();
+      } else toast.error(data.message);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const resetReceptionistPassword = async (recId, newPassword) => {
+    try {
+      const { data } = await axios.post(
+        `${backendUrl}/api/reception/manage/${recId}/reset-password`,
+        { newPassword },
+        { headers: authHeader }
+      );
+      if (data.success) {
+        toast.success(data.message || "Password reset");
+        return true;
+      }
+      toast.error(data.message);
+      return false;
+    } catch (err) {
+      toast.error(err.message);
+      return false;
+    }
+  };
+
+  const deleteReceptionist = async (recId) => {
+    try {
+      const { data } = await axios.delete(
+        `${backendUrl}/api/reception/manage/${recId}`,
+        { headers: authHeader }
+      );
+      if (data.success) {
+        toast.success(data.message || "Removed");
+        await getReceptionists();
+        return true;
+      }
+      toast.error(data.message);
+      return false;
+    } catch (err) {
+      toast.error(err.message);
+      return false;
+    }
+  };
+
   // ── Logout ─────────────────────────────────────────────────────────────────
   const logout = () => {
     setDeanToken("");
@@ -302,6 +390,12 @@ const DeanContextProvider = ({ children }) => {
     cancelAppointment,
     revenueData,
     getRevenueAnalytics,
+    receptionists,
+    getReceptionists,
+    addReceptionist,
+    toggleReceptionist,
+    resetReceptionistPassword,
+    deleteReceptionist,
     logout,
   };
 

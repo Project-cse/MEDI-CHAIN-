@@ -495,8 +495,51 @@ const AdminContextProvider = (props) => {
         }
     }
 
+    // ── Receptionists (global) ──────────────────────────────────────────────
+    const [receptionists, setReceptionists] = useState([])
+
+    const getReceptionists = async () => {
+        try {
+            const { data } = await axios.get(backendUrl + '/api/reception/manage/admin', { headers: { aToken } })
+            if (data.success) setReceptionists(data.receptionists || [])
+            else toast.error(data.message)
+        } catch (error) { toast.error(error.message) }
+    }
+
+    const addReceptionist = async (payload) => {
+        try {
+            const { data } = await axios.post(backendUrl + '/api/reception/manage/admin', payload, { headers: { aToken } })
+            if (data.success) { toast.success(data.message || 'Receptionist created'); await getReceptionists(); return true }
+            toast.error(data.message); return false
+        } catch (error) { toast.error(error.response?.data?.message || error.message); return false }
+    }
+
+    const toggleReceptionist = async (recId, isActive) => {
+        try {
+            const { data } = await axios.post(backendUrl + `/api/reception/manage/admin/${recId}/toggle`, { isActive }, { headers: { aToken } })
+            if (data.success) await getReceptionists(); else toast.error(data.message)
+        } catch (error) { toast.error(error.message) }
+    }
+
+    const resetReceptionistPassword = async (recId, newPassword) => {
+        try {
+            const { data } = await axios.post(backendUrl + `/api/reception/manage/admin/${recId}/reset-password`, { newPassword }, { headers: { aToken } })
+            if (data.success) { toast.success(data.message || 'Password reset'); return true }
+            toast.error(data.message); return false
+        } catch (error) { toast.error(error.message); return false }
+    }
+
+    const deleteReceptionist = async (recId) => {
+        try {
+            const { data } = await axios.delete(backendUrl + `/api/reception/manage/admin/${recId}`, { headers: { aToken } })
+            if (data.success) { toast.success(data.message || 'Removed'); await getReceptionists(); return true }
+            toast.error(data.message); return false
+        } catch (error) { toast.error(error.message); return false }
+    }
+
     const value = {
         aToken, setAToken,
+        receptionists, getReceptionists, addReceptionist, toggleReceptionist, resetReceptionistPassword, deleteReceptionist,
         doctors,
         getAllDoctors,
         changeAvailability,

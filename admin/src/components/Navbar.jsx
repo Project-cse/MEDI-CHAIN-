@@ -3,6 +3,7 @@ import { assets } from '../assets/assets'
 import { DoctorContext } from '../context/DoctorContext'
 import { AdminContext } from '../context/AdminContext'
 import { DeanContext } from '../context/DeanContext'
+import { ReceptionContext } from '../context/ReceptionContext'
 import { AppContext } from '../context/AppContext'
 import { useNavigate } from 'react-router-dom'
 import BrandLogo from './BrandLogo'
@@ -12,6 +13,7 @@ const Navbar = () => {
   const { dToken, setDToken, profileData, getProfileData } = useContext(DoctorContext)
   const { aToken, setAToken } = useContext(AdminContext)
   const { deanToken, setDeanToken, setDeanInfo } = useContext(DeanContext)
+  const { recToken, setRecToken, setRecInfo, recInfo } = useContext(ReceptionContext)
   const { sidebarOpen, setSidebarOpen, darkMode, toggleDarkMode } = useContext(AppContext)
   const navigate = useNavigate()
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -80,11 +82,16 @@ const Navbar = () => {
       setDeanToken('')
       setDeanInfo(null)
     }
+    if (recToken) {
+      await logoutWithApi('receptionist')
+      setRecToken('')
+      setRecInfo(null)
+    }
     navigate('/')
   }
 
   // Get doctor/admin name and photo
-  const adminName = aToken ? 'Super Admin' : (dToken && profileData) ? profileData.name : 'User'
+  const adminName = aToken ? 'Super Admin' : recToken ? (recInfo?.name || 'Receptionist') : (dToken && profileData) ? profileData.name : 'User'
   const adminPhoto = aToken
     ? 'https://ui-avatars.com/api/?name=' + encodeURIComponent(adminName) + '&background=667eea&color=fff&size=128'
     : (dToken && profileData && profileData.image)

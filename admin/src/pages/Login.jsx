@@ -4,6 +4,7 @@ import { saveAuthTokens } from '../services/authApi'
 import { DoctorContext } from '../context/DoctorContext'
 import { AdminContext } from '../context/AdminContext'
 import { DeanContext } from '../context/DeanContext'
+import { ReceptionContext } from '../context/ReceptionContext'
 import { toast } from 'react-toastify'
 import { useNavigate } from 'react-router-dom'
 
@@ -52,6 +53,30 @@ const ROLE_OPTIONS = [
     icon: (
       <svg className='w-8 h-8' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'>
         <path strokeLinecap='round' strokeLinejoin='round' d='M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' />
+      </svg>
+    ),
+    showForgot: false,
+  },
+  {
+    id: 'receptionist',
+    label: 'Reception',
+    title: 'Reception Desk',
+    sub: 'FRONT OFFICE',
+    placeholder: 'reception@id.com',
+    btnText: 'Reception Login',
+    endpoint: '/api/reception/login',
+    dashboard: '/reception-dashboard',
+    tokenKey: 'receptionist',
+    colorClass: {
+      icon: 'from-blue-400 to-blue-600',
+      btn: 'bg-[#2563eb] hover:bg-[#1d4ed8]',
+      textLabel: 'text-blue-600',
+      ring: 'focus:border-blue-400',
+      select: 'border-blue-200 text-blue-700',
+    },
+    icon: (
+      <svg className='w-8 h-8' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'>
+        <path strokeLinecap='round' strokeLinejoin='round' d='M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11m16-11v11M8 14v3m4-3v3m4-3v3' />
       </svg>
     ),
     showForgot: false,
@@ -284,6 +309,8 @@ const Login = () => {
   const [doctorPassword, setDoctorPassword] = useState('')
   const [deanEmail, setDeanEmail] = useState('')
   const [deanPassword, setDeanPassword] = useState('')
+  const [recEmail, setRecEmail] = useState('')
+  const [recPassword, setRecPassword] = useState('')
 
   const [mobileRole, setMobileRole] = useState('doctor')
   const [mobileEmail, setMobileEmail] = useState('')
@@ -293,16 +320,19 @@ const Login = () => {
   const [isAdminLoading, setIsAdminLoading] = useState(false)
   const [isDoctorLoading, setIsDoctorLoading] = useState(false)
   const [isDeanLoading, setIsDeanLoading] = useState(false)
+  const [isRecLoading, setIsRecLoading] = useState(false)
   const [isMobileLoading, setIsMobileLoading] = useState(false)
 
   const [showAdminPwd, setShowAdminPwd] = useState(false)
   const [showDoctorPwd, setShowDoctorPwd] = useState(false)
   const [showDeanPwd, setShowDeanPwd] = useState(false)
+  const [showRecPwd, setShowRecPwd] = useState(false)
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL
   const { setDToken } = useContext(DoctorContext)
   const { setAToken } = useContext(AdminContext)
   const { setDeanToken, setDeanInfo } = useContext(DeanContext)
+  const { setRecToken, setRecInfo } = useContext(ReceptionContext)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -334,6 +364,13 @@ const Login = () => {
         saveAuthTokens('dean', data.token)
         sessionStorage.setItem('deanInfo', JSON.stringify(data.dean))
         toast.success('DEAN login successful!')
+        navigate(roleConfig.dashboard)
+      } else if (roleConfig.tokenKey === 'receptionist') {
+        setRecToken(data.token)
+        setRecInfo(data.reception)
+        saveAuthTokens('receptionist', data.token)
+        sessionStorage.setItem('recInfo', JSON.stringify(data.reception))
+        toast.success('Reception login successful!')
         navigate(roleConfig.dashboard)
       } else {
         setDToken(data.token)
@@ -367,6 +404,11 @@ const Login = () => {
     loginWithRole(ROLE_OPTIONS.find((r) => r.id === 'doctor'), doctorEmail, doctorPassword, setIsDoctorLoading)
   }
 
+  const onRecSubmit = (e) => {
+    e.preventDefault()
+    loginWithRole(ROLE_OPTIONS.find((r) => r.id === 'receptionist'), recEmail, recPassword, setIsRecLoading)
+  }
+
   const onMobileSubmit = (e) => {
     e.preventDefault()
     const role = ROLE_OPTIONS.find((r) => r.id === mobileRole) || ROLE_OPTIONS[0]
@@ -376,6 +418,7 @@ const Login = () => {
   const adminRole = ROLE_OPTIONS.find((r) => r.id === 'admin')
   const deanRole = ROLE_OPTIONS.find((r) => r.id === 'dean')
   const doctorRole = ROLE_OPTIONS.find((r) => r.id === 'doctor')
+  const recRole = ROLE_OPTIONS.find((r) => r.id === 'receptionist')
 
   return (
     <div className='min-h-[100dvh] w-full font-inter bg-slate-50'>
@@ -458,6 +501,29 @@ const Login = () => {
             btnText={doctorRole.btnText}
             placeholder={doctorRole.placeholder}
             isDoctor
+            navigate={navigate}
+          />
+        </div>
+
+        <div className='w-px h-2/3 self-center bg-slate-100' />
+
+        <div className='flex-1 h-screen bg-slate-50 flex flex-col items-center justify-center relative overflow-hidden'>
+          <div className='absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.08),transparent_50%)]' />
+          <PortalCard
+            title={recRole.title}
+            sub={recRole.sub}
+            icon={recRole.icon}
+            email={recEmail}
+            setEmail={setRecEmail}
+            password={recPassword}
+            setPassword={setRecPassword}
+            onSubmit={onRecSubmit}
+            loading={isRecLoading}
+            showPwd={showRecPwd}
+            setShowPwd={setShowRecPwd}
+            colorClass={recRole.colorClass}
+            btnText={recRole.btnText}
+            placeholder={recRole.placeholder}
             navigate={navigate}
           />
         </div>

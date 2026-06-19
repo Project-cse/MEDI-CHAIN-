@@ -1,0 +1,42 @@
+import React, { useContext, useEffect, useState } from 'react'
+import { ReceptionContext } from '../../context/ReceptionContext'
+import { PageWrap, RcHeader, Pill, Spinner, Avatar, EmptyState, patientName, doctorName } from './components'
+
+const NoShows = () => {
+  const { getNoShows } = useContext(ReceptionContext)
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const load = async () => { const r = await getNoShows(); if (r?.success) setRows(r.appointments || []); setLoading(false) }
+  useEffect(() => { load() }, [])
+
+  return (
+    <PageWrap>
+      <RcHeader title='No-Shows' subtitle='Patients who missed their appointment'
+        right={<button onClick={load} className='px-3 py-2 rounded-xl bg-reception text-white text-sm font-semibold shadow-sm hover:bg-blue-700'>Refresh</button>} />
+      <div className='bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden'>
+        {loading ? <Spinner /> : rows.length === 0 ? <EmptyState title='No no-shows recorded' /> : (
+          <div className='overflow-x-auto'>
+            <table className='w-full text-sm'>
+              <thead><tr className='text-left text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50/60'>
+                <th className='px-5 py-3 font-bold'>Patient</th><th className='px-5 py-3 font-bold'>Doctor</th><th className='px-5 py-3 font-bold'>Date</th><th className='px-5 py-3 font-bold'>Status</th>
+              </tr></thead>
+              <tbody>
+                {rows.map((a) => (
+                  <tr key={a._id} className='border-b border-slate-50 hover:bg-slate-50/60'>
+                    <td className='px-5 py-3'><div className='flex items-center gap-2'><Avatar name={patientName(a)} src={a.userData?.image} /><span className='font-semibold text-slate-700'>{patientName(a)}</span></div></td>
+                    <td className='px-5 py-3 text-slate-600'>{doctorName(a)}</td>
+                    <td className='px-5 py-3 text-slate-600'>{a.slotDate || '—'}</td>
+                    <td className='px-5 py-3'><Pill status='NO_SHOW' /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </PageWrap>
+  )
+}
+
+export default NoShows

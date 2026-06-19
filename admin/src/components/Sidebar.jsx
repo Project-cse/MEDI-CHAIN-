@@ -4,13 +4,36 @@ import { NavLink } from 'react-router-dom'
 import { AdminContext } from '../context/AdminContext'
 import { DoctorContext } from '../context/DoctorContext'
 import { DeanContext } from '../context/DeanContext'
+import { ReceptionContext } from '../context/ReceptionContext'
 import { AppContext } from '../context/AppContext'
+
+const RecIcon = ({ d }) => (
+  <svg className='w-5 h-5 flex-shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d={d} />
+  </svg>
+)
+
+const RECEPTION_LINKS = [
+  { to: '/reception-dashboard', label: 'Dashboard', d: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+  { to: '/reception-online', label: 'Online Bookings', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01' },
+  { to: '/reception-walkin', label: 'Walk-In Registration', d: 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z' },
+  { to: '/reception-checkin', label: 'QR Check-In', d: 'M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z' },
+  { to: '/reception-queue', label: 'Queue Management', d: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
+  { to: '/reception-patients', label: 'Patients', d: 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4z' },
+  { to: '/reception-followups', label: 'Follow-Ups', d: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { to: '/reception-payments', label: 'Payments', d: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
+  { to: '/reception-refunds', label: 'Refund Requests', d: 'M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6' },
+  { to: '/reception-noshows', label: 'No-Shows', d: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
+  { to: '/reception-reports', label: 'Reports', d: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { to: '/reception-settings', label: 'Settings', d: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
+]
 
 const Sidebar = () => {
 
   const { aToken } = useContext(AdminContext)
   const { dToken } = useContext(DoctorContext)
   const { deanToken } = useContext(DeanContext)
+  const { recToken, recInfo, logout: recLogout } = useContext(ReceptionContext)
   const { sidebarOpen, setSidebarOpen } = useContext(AppContext)
 
   const closeSidebar = () => {
@@ -106,6 +129,11 @@ const Sidebar = () => {
             <p className='md:block'>Reception Scan</p>
           </NavLink>
 
+          <NavLink onClick={closeSidebar} to={'/manage-receptionists'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
+            <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11m16-11v11M8 14v3m4-3v3m4-3v3' /></svg>
+            <p className='md:block'>Receptionists</p>
+          </NavLink>
+
           <NavLink onClick={closeSidebar} to={'/refund-management'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
             <svg className='w-5 h-5' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
             <p className='md:block'>Refunds</p>
@@ -157,7 +185,46 @@ const Sidebar = () => {
             <img className='w-5' src={assets.home_icon} alt="" />
             <p className='md:block'>Hospital Tie ups</p>
           </NavLink>
+
+          <NavLink onClick={closeSidebar} to={'/dean-receptionists'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0fdfa] border-r-4 border-dean text-dean font-bold' : 'hover:bg-slate-50'}`}>
+            <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11m16-11v11M8 14v3m4-3v3m4-3v3' /></svg>
+            <p className='md:block'>Receptionists</p>
+          </NavLink>
           <li onClick={() => { sessionStorage.clear(); window.location.reload(); closeSidebar(); }} className='flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer hover:bg-rose-50 text-rose-500 mt-10 transition-all font-bold text-xs uppercase tracking-widest'>
+            <svg className='w-5 h-5' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            <p className='md:block'>Log Out</p>
+          </li>
+        </ul>
+      }
+
+      {/* ── Reception Menu — (Front Desk Operations) ────────────────────── */}
+      {
+        recToken && <ul className='text-slate-600 mt-5'>
+          {RECEPTION_LINKS.map((link) => (
+            <NavLink
+              key={link.to}
+              onClick={closeSidebar}
+              to={link.to}
+              className={({ isActive }) => `flex items-center gap-3 py-3 px-3 md:px-8 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#eff6ff] border-r-4 border-reception text-reception font-bold' : 'hover:bg-slate-50'}`}
+            >
+              <RecIcon d={link.d} />
+              <p className='md:block text-sm'>{link.label}</p>
+            </NavLink>
+          ))}
+
+          <div className='mx-4 mt-6 mb-2 p-3 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 flex items-center gap-3'>
+            <div className='w-9 h-9 rounded-full bg-reception text-white flex items-center justify-center font-bold text-sm shrink-0'>
+              {(recInfo?.name || 'R').charAt(0).toUpperCase()}
+            </div>
+            <div className='min-w-0'>
+              <p className='text-sm font-bold text-slate-800 truncate'>{recInfo?.name || 'Receptionist'}</p>
+              <p className='text-[11px] text-emerald-600 font-semibold flex items-center gap-1'>
+                <span className='w-1.5 h-1.5 rounded-full bg-emerald-500' /> Online
+              </p>
+            </div>
+          </div>
+
+          <li onClick={() => { recLogout(); window.location.href = '/'; }} className='flex items-center gap-3 py-3.5 px-3 md:px-8 md:min-w-64 cursor-pointer hover:bg-rose-50 text-rose-500 transition-all font-bold text-xs uppercase tracking-widest'>
             <svg className='w-5 h-5' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
             <p className='md:block'>Log Out</p>
           </li>

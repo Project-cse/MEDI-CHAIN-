@@ -2,6 +2,7 @@ import React, { useContext, useEffect } from 'react'
 import { DoctorContext } from './context/DoctorContext';
 import { AdminContext } from './context/AdminContext';
 import { DeanContext } from './context/DeanContext';
+import { ReceptionContext } from './context/ReceptionContext';
 import { AppContext } from './context/AppContext';
 import { Route, Routes, useLocation, Navigate } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify';
@@ -29,6 +30,7 @@ import RevenueAnalytics from './pages/Admin/RevenueAnalytics';
 import RefundManagement from './pages/Admin/RefundManagement';
 import ReceptionScan from './pages/Admin/ReceptionScan';
 import DeanPortals from './pages/Admin/DeanPortals';
+import AdminManageReceptionists from './pages/Admin/ManageReceptionists';
 
 // Doctor pages
 import DoctorAppointments from './pages/Doctor/DoctorAppointments';
@@ -46,6 +48,22 @@ import DeanAddDoctor from './pages/Dean/DeanAddDoctor';
 import DeanPatients from './pages/Dean/DeanPatients';
 import DeanAppointments from './pages/Dean/DeanAppointments';
 import DeanHospital from './pages/Dean/DeanHospital';
+import DeanManageReceptionists from './pages/Dean/ManageReceptionists';
+
+// Reception pages
+import ReceptionDashboard from './pages/Reception/ReceptionDashboard';
+import OnlineBookings from './pages/Reception/OnlineBookings';
+import WalkInRegistration from './pages/Reception/WalkInRegistration';
+import QRCheckIn from './pages/Reception/QRCheckIn';
+import ReceptionQueue from './pages/Reception/QueueManagement';
+import ConsultationSummary from './pages/Reception/ConsultationSummary';
+import ReceptionPatients from './pages/Reception/Patients';
+import ReceptionFollowUps from './pages/Reception/FollowUps';
+import ReceptionPayments from './pages/Reception/Payments';
+import ReceptionRefunds from './pages/Reception/RefundRequests';
+import ReceptionNoShows from './pages/Reception/NoShows';
+import ReceptionReports from './pages/Reception/Reports';
+import ReceptionSettings from './pages/Reception/Settings';
 
 // Auth pages
 import Login from './pages/Login';
@@ -55,10 +73,11 @@ const App = () => {
   const { dToken } = useContext(DoctorContext)
   const { aToken } = useContext(AdminContext)
   const { deanToken } = useContext(DeanContext)
+  const { recToken } = useContext(ReceptionContext)
   const { sidebarOpen, setSidebarOpen, darkMode } = useContext(AppContext)
   const location = useLocation()
 
-  const isAuthenticated = dToken || aToken || deanToken
+  const isAuthenticated = dToken || aToken || deanToken || recToken
 
   // Login/auth screens are always light; dashboard respects user toggle (default light)
   useEffect(() => {
@@ -91,7 +110,8 @@ const App = () => {
               aToken ? <Navigate to='/admin-dashboard' /> :
                 dToken ? <Navigate to='/doctor-dashboard' /> :
                   deanToken ? <Navigate to='/dean-dashboard' /> :
-                    <Navigate to='/login' />
+                    recToken ? <Navigate to='/reception-dashboard' /> :
+                      <Navigate to='/login' />
             } />
 
             {/* ── Admin Routes ────────────────────────────────── */}
@@ -108,6 +128,7 @@ const App = () => {
             <Route path='/add-doctor' element={<AddDoctor />} />
             <Route path='/revenue-analytics' element={<RevenueAnalytics />} />
             <Route path='/reception-scan' element={<ReceptionScan />} />
+            <Route path='/manage-receptionists' element={<AdminManageReceptionists />} />
             <Route path='/refund-management' element={<RefundManagement />} />
 
             {/* ── Doctor Routes ────────────────────────────────── */}
@@ -125,6 +146,23 @@ const App = () => {
             <Route path='/dean-appointments' element={<DeanAppointments />} />
             <Route path='/dean-patients' element={<DeanPatients />} />
             <Route path='/dean-hospital' element={<DeanHospital />} />
+            <Route path='/dean-receptionists' element={<DeanManageReceptionists />} />
+
+            {/* ── Reception Routes ─────────────────────────────── */}
+            <Route path='/reception-dashboard' element={<ReceptionDashboard />} />
+            <Route path='/reception-online' element={<OnlineBookings />} />
+            <Route path='/reception-walkin' element={<WalkInRegistration />} />
+            <Route path='/reception-checkin' element={<QRCheckIn />} />
+            <Route path='/reception-queue' element={<ReceptionQueue />} />
+            <Route path='/reception-summary/:appointmentId' element={<ConsultationSummary />} />
+            <Route path='/reception-patients' element={<ReceptionPatients />} />
+            <Route path='/reception-followups' element={<ReceptionFollowUps />} />
+            <Route path='/reception-payments' element={<ReceptionPayments />} />
+            <Route path='/reception-refunds' element={<ReceptionRefunds />} />
+            <Route path='/reception-noshows' element={<ReceptionNoShows />} />
+            <Route path='/reception-reports' element={<ReceptionReports />} />
+            <Route path='/reception-settings' element={<ReceptionSettings />} />
+
             <Route path='*' element={<Navigate to='/' />} />
           </Routes>
         </div>

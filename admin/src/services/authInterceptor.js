@@ -11,6 +11,7 @@ const ROLE_HEADERS = {
   admin: 'atoken',
   doctor: 'dtoken',
   dean: 'deantoken',
+  receptionist: 'rectoken',
 }
 
 let refreshPromise = null
@@ -23,6 +24,7 @@ function detectRole(config) {
   if (normalized.atoken) return 'admin'
   if (normalized.dtoken) return 'doctor'
   if (normalized.deantoken || normalized['dean-token']) return 'dean'
+  if (normalized.rectoken || normalized['reception-token']) return 'receptionist'
   return null
 }
 

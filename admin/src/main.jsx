@@ -10,6 +10,7 @@ import AdminContextProvider from './context/AdminContext.jsx'
 import DoctorContextProvider from './context/DoctorContext.jsx'
 import AppContextProvider from './context/AppContext.jsx'
 import DeanContextProvider from './context/DeanContext.jsx'
+import ReceptionContextProvider from './context/ReceptionContext.jsx'
 import { SocketProvider } from './context/SocketContext.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -19,7 +20,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <DoctorContextProvider>
           <AppContextProvider>
             <DeanContextProvider>
-              <App />
+              <ReceptionContextProvider>
+                <App />
+              </ReceptionContextProvider>
             </DeanContextProvider>
           </AppContextProvider>
         </DoctorContextProvider>

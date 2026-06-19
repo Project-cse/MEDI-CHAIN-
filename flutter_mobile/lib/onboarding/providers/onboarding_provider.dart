@@ -91,7 +91,14 @@ class OnboardingNotifier extends StateNotifier<OnboardingUiState> {
 
   /// After tour ends — skip steps 7/8 if data already on file.
   Future<void> _advanceAfterTour() async {
-    var status = await _service.fetchStatus();
+    // Never let a flaky/slow network freeze the flow on the Emergency step:
+    // fall back to the last known status if the fetch fails.
+    OnboardingStatus status;
+    try {
+      status = await _service.fetchStatus();
+    } catch (_) {
+      status = state.status;
+    }
     if (!status.emergencyContactCompleted) {
       state = state.copyWith(phase: OnboardingPhase.emergency, status: status);
       return;

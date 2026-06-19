@@ -20,6 +20,28 @@ async def get_user_by_email(email: str):
     sql = 'SELECT * FROM users WHERE email = $1'
     return await db.fetch_row(sql, email)
 
+async def search_users(q: str, limit: int = 20):
+    """Search patients by name, phone, email or public_id (reception lookup)."""
+    term = (q or "").strip()
+    if not term:
+        return []
+    like = f"%{term}%"
+    sql = """
+        SELECT id, public_id, name, email, phone, image, gender, dob, age,
+               address_line1, address_line2, blood_group
+        FROM users
+        WHERE role = 'patient'
+          AND (
+            name ILIKE $1
+            OR phone ILIKE $1
+            OR email ILIKE $1
+            OR public_id ILIKE $1
+          )
+        ORDER BY name ASC
+        LIMIT $2
+    """
+    return await db.query(sql, like, int(limit))
+
 async def create_user(user_data: Dict[str, Any]):
     from app.services import public_id_service
 
