@@ -49,6 +49,14 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
   String? _callEndedMessage;
   Timer? _callTimer;
   Timer? _statusPollTimer;
+  Timer? _chatPollTimer;
+
+  bool _chatOpen = false;
+  bool _chatUnread = false;
+  int _lastChatId = 0;
+  final List<Map<String, dynamic>> _chatMessages = [];
+  final TextEditingController _chatController = TextEditingController();
+  final ScrollController _chatScroll = ScrollController();
 
   String get _callDurationLabel {
     final m = _callSeconds ~/ 60;
@@ -99,11 +107,69 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
     });
   }
 
+  void _startChatPolling() {
+    _chatPollTimer?.cancel();
+    _fetchChat();
+    _chatPollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (_callEnding || !mounted) return;
+      _fetchChat();
+    });
+  }
+
+  Future<void> _fetchChat() async {
+    try {
+      final msgs = await ref
+          .read(consultationServiceProvider)
+          .fetchChatMessages(widget.appointmentId, after: _lastChatId);
+      if (!mounted || msgs.isEmpty) return;
+      final existingIds = _chatMessages
+          .map((e) => (e['id'] is num) ? (e['id'] as num).toInt() : -1)
+          .toSet();
+      var sawIncoming = false;
+      for (final m in msgs) {
+        final id = (m['id'] is num) ? (m['id'] as num).toInt() : 0;
+        if (id > 0 && existingIds.contains(id)) continue;
+        if (id > _lastChatId) _lastChatId = id;
+        if ((m['role'] ?? '') != 'patient') sawIncoming = true;
+        _chatMessages.add(m);
+      }
+      setState(() {
+        if (sawIncoming && !_chatOpen) _chatUnread = true;
+      });
+      _scrollChatToEnd();
+    } catch (_) {}
+  }
+
+  Future<void> _sendChat() async {
+    final text = _chatController.text.trim();
+    if (text.isEmpty) return;
+    _chatController.clear();
+    try {
+      final msg = await ref
+          .read(consultationServiceProvider)
+          .sendChatMessage(widget.appointmentId, text);
+      if (!mounted || msg == null) return;
+      final id = (msg['id'] is num) ? (msg['id'] as num).toInt() : 0;
+      if (id > _lastChatId) _lastChatId = id;
+      setState(() => _chatMessages.add(msg));
+      _scrollChatToEnd();
+    } catch (_) {}
+  }
+
+  void _scrollChatToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_chatScroll.hasClients) {
+        _chatScroll.jumpTo(_chatScroll.position.maxScrollExtent);
+      }
+    });
+  }
+
   Future<void> _handleCallEnded(String message, {bool notifyServer = false}) async {
     if (_callEnding) return;
     _callEnding = true;
     _callTimer?.cancel();
     _statusPollTimer?.cancel();
+    _chatPollTimer?.cancel();
     if (mounted) setState(() => _callEndedMessage = message);
 
     if (notifyServer) {
@@ -272,6 +338,7 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
         _loading = false;
       });
       _startStatusPolling();
+      _startChatPolling();
     } on VideoConsultPermissionException catch (e) {
       if (!_alive) return;
       setState(() {
@@ -300,6 +367,9 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
     _activeAppointments.remove(widget.appointmentId);
     _callTimer?.cancel();
     _statusPollTimer?.cancel();
+    _chatPollTimer?.cancel();
+    _chatController.dispose();
+    _chatScroll.dispose();
     if (!_callEnding) {
       unawaited(_tearDownEngine(_engine));
     }
@@ -378,6 +448,7 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
                         setState(() => _speakerOn = next);
                       },
                     ),
+                    _chatControlBtn(),
                     _controlBtn(
                       icon: Icons.call_end,
                       label: l10n.videoEndConsult,
@@ -518,6 +589,7 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
               ),
             ),
           ),
+        if (_chatOpen) _buildChatPanel(),
         if (_callEndedMessage != null)
           ColoredBox(
             color: Colors.black.withValues(alpha: 0.85),
@@ -546,6 +618,183 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _chatControlBtn() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Material(
+              color: _chatOpen ? AppColors.primary : Colors.white24,
+              shape: const CircleBorder(),
+              child: IconButton(
+                icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+                onPressed: () {
+                  setState(() {
+                    _chatOpen = !_chatOpen;
+                    if (_chatOpen) _chatUnread = false;
+                  });
+                  if (_chatOpen) _scrollChatToEnd();
+                },
+              ),
+            ),
+            if (_chatUnread)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: const BoxDecoration(
+                    color: Colors.redAccent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text('Chat', style: GoogleFonts.poppins(fontSize: 11, color: Colors.white70)),
+      ],
+    );
+  }
+
+  Widget _buildChatPanel() {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      top: MediaQuery.of(context).size.height * 0.32,
+      child: Material(
+        color: const Color(0xFF12121A),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.chat_bubble, color: Colors.white70, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Chat with doctor',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => setState(() => _chatOpen = false),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: Colors.white12),
+            Expanded(
+              child: _chatMessages.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No messages yet.\nSend a message to your doctor.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(color: Colors.white38, fontSize: 13),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _chatScroll,
+                      padding: const EdgeInsets.all(14),
+                      itemCount: _chatMessages.length,
+                      itemBuilder: (context, i) {
+                        final m = _chatMessages[i];
+                        final mine = (m['role'] ?? '') == 'patient';
+                        return Align(
+                          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * 0.72,
+                            ),
+                            decoration: BoxDecoration(
+                              color: mine ? AppColors.primary : Colors.white12,
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(14),
+                                topRight: const Radius.circular(14),
+                                bottomLeft: Radius.circular(mine ? 14 : 2),
+                                bottomRight: Radius.circular(mine ? 2 : 14),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (!mine)
+                                  Text(
+                                    (m['name'] ?? 'Doctor').toString(),
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white60,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                Text(
+                                  (m['text'] ?? '').toString(),
+                                  style: GoogleFonts.poppins(color: Colors.white, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _chatController,
+                        style: GoogleFonts.poppins(color: Colors.white, fontSize: 14),
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendChat(),
+                        decoration: InputDecoration(
+                          hintText: 'Type a message…',
+                          hintStyle: GoogleFonts.poppins(color: Colors.white38, fontSize: 13),
+                          filled: true,
+                          fillColor: Colors.white10,
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Material(
+                      color: AppColors.primary,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        icon: const Icon(Icons.send, color: Colors.white),
+                        onPressed: _sendChat,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

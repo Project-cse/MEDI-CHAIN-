@@ -106,6 +106,25 @@ def _doctor_available_for_status(status: str) -> bool:
     return status in ("available", "busy", "online", "in-clinic")
 
 
+def _parse_available_days(val: Any) -> list:
+    """Normalize the doctor's available_days (JSONB / text / list) to a list of day strings."""
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return [str(d) for d in val]
+    if isinstance(val, str):
+        s = val.strip()
+        if not s:
+            return []
+        try:
+            parsed = json.loads(s)
+            if isinstance(parsed, list):
+                return [str(d) for d in parsed]
+        except Exception:
+            return [d.strip() for d in s.split(',') if d.strip()]
+    return []
+
+
 def format_doctor(doc: Any) -> Optional[Dict[str, Any]]:
     if not doc:
         return None
@@ -168,6 +187,9 @@ def format_doctor(doc: Any) -> Optional[Dict[str, Any]]:
         } if d.get('address_line1') else {},
         "available": available,
         "status": status,
+        "opStart": d.get('op_start'),
+        "opEnd": d.get('op_end'),
+        "availableDays": _parse_available_days(d.get('available_days')),
         "phone": d.get('phone') or d.get('hospital_contact') or d.get('contact'),
         "slots_booked": slots_booked,
         "hospitalId": d.get('hospital_id'),

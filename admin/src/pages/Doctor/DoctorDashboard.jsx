@@ -1,5 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import axios from 'axios'
+import { toast } from 'react-toastify'
 import { DoctorContext } from '../../context/DoctorContext'
 import { AppContext } from '../../context/AppContext'
 import AnimatedCounter from '../../components/ui/AnimatedCounter'
@@ -8,12 +10,24 @@ import { isOnlineVideoAppointment } from '../../utils/videoConsult'
 import CompleteConsultationModal from '../../components/CompleteConsultationModal'
 import { AdminPageLayout, McCard, KpiCard } from '../../components/mc'
 
+const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+const STATUS_OPTIONS = [
+  { value: 'available', label: 'Available', dot: 'bg-emerald-500', activeCls: 'bg-emerald-50 border-emerald-300 text-emerald-700 ring-emerald-400' },
+  { value: 'in-clinic', label: 'In-clinic', dot: 'bg-sky-500', activeCls: 'bg-sky-50 border-sky-300 text-sky-700 ring-sky-400' },
+  { value: 'emergency', label: 'Emergency', dot: 'bg-rose-500', activeCls: 'bg-rose-50 border-rose-300 text-rose-700 ring-rose-400' },
+  { value: 'offline', label: 'Offline', dot: 'bg-slate-400', activeCls: 'bg-slate-100 border-slate-300 text-slate-700 ring-slate-400' },
+]
+
 const DoctorDashboard = () => {
-  const { dToken, dashData, getDashData, cancelAppointment, completeAppointment } = useContext(DoctorContext)
+  const { dToken, backendUrl, dashData, getDashData, cancelAppointment, completeAppointment, profileData, getProfileData } = useContext(DoctorContext)
   const { slotDateFormat, calculateAge, currency } = useContext(AppContext)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [completeTarget, setCompleteTarget] = useState(null)
   const [completing, setCompleting] = useState(false)
+  const [sched, setSched] = useState({ opStart: '09:00', opEnd: '17:00', days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] })
+  const [savingStatus, setSavingStatus] = useState(false)
+  const [savingSched, setSavingSched] = useState(false)
   const navigate = useNavigate()
 
   const handleCompleteSubmit = async (consultationData) => {
@@ -25,13 +39,88 @@ const DoctorDashboard = () => {
   }
 
   useEffect(() => {
-    if (dToken) getDashData()
+    if (dToken) {
+      getDashData()
+      getProfileData()
+    }
   }, [dToken])
+
+  // Initialize scheduling editor from the doctor's saved profile.
+  useEffect(() => {
+    if (!profileData) return
+    setSched({
+      opStart: profileData.opStart || '09:00',
+      opEnd: profileData.opEnd || '17:00',
+      days: Array.isArray(profileData.availableDays) && profileData.availableDays.length
+        ? profileData.availableDays
+        : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+    })
+  }, [profileData])
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
+
+  // Persist a partial profile change via the existing update-profile endpoint.
+  // address/fees/about are always sent so they are not wiped server-side.
+  const saveProfile = async (overrides = {}, successMsg) => {
+    try {
+      const fd = new FormData()
+      fd.append('address', JSON.stringify(profileData?.address || { line1: '', line2: '' }))
+      fd.append('fees', String(profileData?.fees ?? 0))
+      fd.append('about', profileData?.about || '')
+      if (overrides.status !== undefined) fd.append('status', overrides.status)
+      if (overrides.opStart !== undefined) fd.append('opStart', overrides.opStart)
+      if (overrides.opEnd !== undefined) fd.append('opEnd', overrides.opEnd)
+      if (overrides.availableDays !== undefined) fd.append('availableDays', JSON.stringify(overrides.availableDays))
+      const { data } = await axios.post(backendUrl + '/api/doctor/update-profile', fd, { headers: { dToken } })
+      if (data.success) {
+        if (successMsg) toast.success(successMsg)
+        getProfileData()
+        return true
+      }
+      toast.error(data.message || 'Could not save')
+      return false
+    } catch (e) {
+      toast.error(e.response?.data?.message || e.message || 'Could not save')
+      return false
+    }
+  }
+
+  const handleStatusChange = async (value, label) => {
+    if (savingStatus) return
+    setSavingStatus(true)
+    await saveProfile({ status: value }, `Status updated to ${label}`)
+    setSavingStatus(false)
+  }
+
+  const toggleDay = (day) => {
+    setSched((prev) => ({
+      ...prev,
+      days: prev.days.includes(day) ? prev.days.filter((d) => d !== day) : [...prev.days, day],
+    }))
+  }
+
+  const handleScheduleSave = async () => {
+    if (savingSched) return
+    if (!sched.opStart || !sched.opEnd) {
+      toast.error('Please set both OP start and end times')
+      return
+    }
+    if (sched.days.length === 0) {
+      toast.error('Select at least one available day')
+      return
+    }
+    setSavingSched(true)
+    await saveProfile(
+      { opStart: sched.opStart, opEnd: sched.opEnd, availableDays: sched.days },
+      'Schedule updated'
+    )
+    setSavingSched(false)
+  }
+
+  const currentStatus = profileData?.status || (profileData?.available === false ? 'offline' : 'available')
 
   const formatTime = (date) =>
     date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
@@ -102,6 +191,89 @@ const DoctorDashboard = () => {
           icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
           onClick={() => navigate('/doctor-appointments')}
         />
+      </div>
+
+      {/* Availability status + Scheduling */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Status buttons */}
+        <McCard title="My Availability">
+          <p className="text-xs text-mc-text-muted mb-3">Set your current consultation status — patients see this instantly.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {STATUS_OPTIONS.map((opt) => {
+              const active = currentStatus === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={savingStatus}
+                  onClick={() => handleStatusChange(opt.value, opt.label)}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all disabled:opacity-60 ${
+                    active
+                      ? `${opt.activeCls} ring-2 ring-offset-2`
+                      : 'bg-white border-mc-border hover:border-slate-300 text-mc-text'
+                  }`}
+                >
+                  <span className={`w-3 h-3 rounded-full ${opt.dot} shadow-sm`} />
+                  <span className="text-xs font-bold uppercase tracking-wider">{opt.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </McCard>
+
+        {/* Scheduling & Consultation */}
+        <McCard title="Scheduling & Consultation">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-mc-text mb-1.5">OP Timings *</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="time"
+                  value={sched.opStart}
+                  onChange={(e) => setSched((p) => ({ ...p, opStart: e.target.value }))}
+                  className="flex-1 px-3 py-2 border border-mc-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400"
+                />
+                <span className="text-xs text-mc-text-muted">to</span>
+                <input
+                  type="time"
+                  value={sched.opEnd}
+                  onChange={(e) => setSched((p) => ({ ...p, opEnd: e.target.value }))}
+                  className="flex-1 px-3 py-2 border border-mc-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-mc-text mb-1.5">Available Days *</label>
+              <div className="flex flex-wrap gap-2">
+                {WEEK_DAYS.map((day) => {
+                  const active = sched.days.includes(day)
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleDay(day)}
+                      className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                        active
+                          ? 'bg-teal-500 text-white shadow-sm'
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleScheduleSave}
+              disabled={savingSched}
+              className="mc-btn mc-btn--primary w-full sm:w-auto disabled:opacity-60"
+            >
+              {savingSched ? 'Saving…' : 'Save Schedule'}
+            </button>
+          </div>
+        </McCard>
       </div>
 
       {/* Video consultations */}

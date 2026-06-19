@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request, UploadFile, File, Form
-from app.controllers import doctor_controller, consultation_controller, doctor_slot_controller
+from app.controllers import doctor_controller, consultation_controller, doctor_slot_controller, vc_chat_controller
 from app.middleware.auth import auth_doctor
 from app.utils.auth_response import build_auth_response
 from app.models import doctor_model
@@ -52,6 +52,9 @@ async def update_profile(
     address: Optional[str] = Form(None),
     available: Optional[str] = Form(None),
     status: Optional[str] = Form(None),
+    opStart: Optional[str] = Form(None),
+    opEnd: Optional[str] = Form(None),
+    availableDays: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
     doc_id: int = Depends(auth_doctor)
 ):
@@ -60,7 +63,10 @@ async def update_profile(
         "about": about,
         "address": address,
         "available": available,
-        "status": status
+        "status": status,
+        "opStart": opStart,
+        "opEnd": opEnd,
+        "availableDays": availableDays,
     }
     return await doctor_controller.update_doctor_profile(doc_id, form_data, image)
 
@@ -150,6 +156,21 @@ async def doctor_end_video_call(appointmentId: int, req: Request, doc_id: int = 
         except Exception:
             body = {}
     return await consultation_controller.end_video_call_for_doctor(doc_id, appointmentId, body)
+
+@router.get("/appointments/{appointmentId}/chat")
+async def doctor_get_chat(appointmentId: int, after: int = 0, doc_id: int = Depends(auth_doctor)):
+    return await vc_chat_controller.get_messages(appointmentId, after)
+
+@router.post("/appointments/{appointmentId}/chat")
+async def doctor_post_chat(appointmentId: int, req: Request, doc_id: int = Depends(auth_doctor)):
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    doctor = await doctor_model.get_doctor_by_id(doc_id)
+    name = (doctor or {}).get('name') if doctor else None
+    return await vc_chat_controller.post_message(appointmentId, 'doctor', name or 'Doctor', body.get('text', ''))
 
 @router.get("/{doctor_id}/slots")
 async def get_doctor_schedule_slots(doctor_id: str, mode: str = "offline"):

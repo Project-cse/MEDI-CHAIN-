@@ -193,4 +193,31 @@ class ConsultationService {
     assertSuccess(data, 'Could not end video call');
     return data;
   }
+
+  /// Fetch in-call chat messages newer than [after] (their numeric id).
+  Future<List<Map<String, dynamic>>> fetchChatMessages(String appointmentId, {int after = 0}) async {
+    final res = await _api.get<Map<String, dynamic>>(
+      '${ApiConfig.chatForAppointment(appointmentId)}?after=$after',
+    );
+    final data = res.data ?? {};
+    final list = data['messages'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>?> sendChatMessage(String appointmentId, String text) async {
+    final res = await _api.post<Map<String, dynamic>>(
+      ApiConfig.chatForAppointment(appointmentId),
+      data: {'text': text},
+    );
+    final data = res.data ?? {};
+    final msg = data['message'];
+    if (msg is Map) return Map<String, dynamic>.from(msg);
+    return null;
+  }
 }

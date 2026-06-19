@@ -241,7 +241,9 @@ async def update_doctor(doc_id: Union[int, str], doctor_data: Dict[str, Any]):
         'hospitalId': 'hospital_id',
         'videoConsult': 'video_consult',
         'locationLat': 'location_lat',
-        'locationLng': 'location_lng'
+        'locationLng': 'location_lng',
+        'op_start': 'op_start',
+        'op_end': 'op_end',
     }
 
     for key, column in mapping.items():
@@ -249,6 +251,11 @@ async def update_doctor(doc_id: Union[int, str], doctor_data: Dict[str, Any]):
             fields.append(f"{column} = ${param_count}")
             values.append(doctor_data[key])
             param_count += 1
+
+    if 'available_days' in doctor_data:
+        fields.append(f"available_days = ${param_count}")
+        values.append(json.dumps(doctor_data['available_days'] or []))
+        param_count += 1
 
     if 'address' in doctor_data:
         addr = doctor_data['address'] or {}

@@ -425,6 +425,26 @@ async def user_end_video_call(appointmentId: int, req: Request, user_id: int = D
     return await consultation_controller.end_video_call_for_user(user_id, appointmentId, body)
 
 
+@router.get("/appointments/{appointmentId}/chat")
+async def user_get_chat(appointmentId: int, after: int = 0, user_id: int = Depends(auth_user)):
+    from app.controllers import vc_chat_controller
+    return await vc_chat_controller.get_messages(appointmentId, after)
+
+
+@router.post("/appointments/{appointmentId}/chat")
+async def user_post_chat(appointmentId: int, req: Request, user_id: int = Depends(auth_user)):
+    from app.controllers import vc_chat_controller
+    from app.models import user_model
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    user = await user_model.get_user_by_id(user_id)
+    name = (user or {}).get('name') if user else None
+    return await vc_chat_controller.post_message(appointmentId, 'patient', name or 'Patient', body.get('text', ''))
+
+
 @router.post("/fcm-token")
 async def register_fcm_token(req: Request, user_id: int = Depends(auth_user)):
     body = await req.json()

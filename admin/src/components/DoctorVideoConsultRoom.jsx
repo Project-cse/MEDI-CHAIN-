@@ -24,22 +24,17 @@ async function createLocalTracks(wantCamera) {
   }
 }
 
-function ToolbarButton({ label, active, danger, onClick, children }) {
+function RoundCtrl({ label, active, onClick, children }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={label}
-      className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${
-        danger
-          ? 'bg-red-600 hover:bg-red-700 text-white'
-          : active
-            ? 'bg-teal-100 text-teal-800'
-            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-      }`}
-    >
-      {children}
-      <span className="text-[10px] font-medium">{label}</span>
+    <button type="button" onClick={onClick} title={label} className="flex flex-col items-center gap-1 group">
+      <span
+        className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
+          active ? 'bg-white text-slate-900' : 'bg-white/15 hover:bg-white/30 text-white'
+        }`}
+      >
+        {children}
+      </span>
+      <span className="text-[10px] font-medium text-white/80">{label}</span>
     </button>
   )
 }
@@ -71,6 +66,9 @@ const DoctorVideoConsultRoom = ({
   const [callEndedMessage, setCallEndedMessage] = useState(null)
   const [publishCamera, setPublishCamera] = useState(publishCameraInitial)
   const [showChat, setShowChat] = useState(false)
+  const [sidebarTab, setSidebarTab] = useState('prescription')
+  const [showMore, setShowMore] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [chatInput, setChatInput] = useState('')
   const [chatMessages, setChatMessages] = useState([])
   const [prescription, setPrescription] = useState('')
@@ -92,18 +90,36 @@ const DoctorVideoConsultRoom = ({
   const localTracksRef = useRef([])
   const localVideoRef = useRef(null)
   const remoteVideoRef = useRef(null)
+  const videoPanelRef = useRef(null)
   const remoteUsersRef = useRef(new Map())
   const callEndedRef = useRef(false)
   const hadRemoteRef = useRef(false)
   const joinAttemptRef = useRef(0)
+  const lastChatIdRef = useRef(0)
 
   const patientName = getPatientName(appointment)
   const patientAge = getPatientAge(appointment, calculateAge)
   const patientImage = getPatientImage(appointment)
   const patientGender =
     appointment?.actualPatient?.gender || appointment?.userData?.gender || '—'
-  const rawSymptoms = appointment?.selectedSymptoms || []
+  const patientEmail = appointment?.userData?.email || appointment?.actualPatient?.email || '—'
+  const patientPhone =
+    appointment?.userData?.phone || appointment?.actualPatient?.phone || appointment?.docData?.phone || '—'
+  const rawAddr = appointment?.userData?.address
+  const patientAddress =
+    typeof rawAddr === 'string'
+      ? rawAddr
+      : [rawAddr?.line1, rawAddr?.line2].filter(Boolean).join(', ') || '—'
+  const apSymptoms = appointment?.actualPatient?.symptoms
+  const rawSymptoms = [
+    ...(appointment?.selectedSymptoms || []),
+    ...(typeof apSymptoms === 'string' && apSymptoms.trim()
+      ? apSymptoms.split(',').map((s) => s.trim()).filter(Boolean)
+      : []),
+  ]
   const symptoms = rawSymptoms.filter((s) => !String(s).startsWith('Note:'))
+  const bookingReportUrl =
+    appointment?.userData?.bookingReportUrl || appointment?.actualPatient?.prescription || null
   const patientBookingNotes = [
     ...rawSymptoms
       .filter((s) => String(s).startsWith('Note:'))
@@ -113,7 +129,6 @@ const DoctorVideoConsultRoom = ({
       ? [String(rawSymptoms[0])]
       : []),
   ]
-  const tokenNo = appointment?.tokenNumber
   const bookingId = appointment?.bookingId || `APP-${appointmentId}`
   const apptLabel = bookingId.startsWith('APP') ? bookingId : `APP-${bookingId}`
 
@@ -510,13 +525,70 @@ const DoctorVideoConsultRoom = ({
     }
   }
 
-  const sendChat = () => {
+  const toggleFullscreen = () => {
+    const el = videoPanelRef.current
+    if (!el) return
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {})
+    } else {
+      document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {})
+    }
+  }
+
+  const openChat = () => {
+    setShowChat(true)
+    setSidebarTab('chat')
+  }
+
+  const appendChatMessages = (msgs) => {
+    if (!msgs || !msgs.length) return
+    setChatMessages((prev) => {
+      const seen = new Set(prev.map((m) => m.id).filter((id) => id != null))
+      const next = [...prev]
+      for (const m of msgs) {
+        if (m.id != null && seen.has(m.id)) continue
+        next.push({ id: m.id, from: m.role === 'doctor' ? 'doctor' : 'patient', text: m.text, at: m.at ? new Date(m.at) : new Date() })
+        if (m.id != null) lastChatIdRef.current = Math.max(lastChatIdRef.current, m.id)
+      }
+      return next
+    })
+  }
+
+  const fetchChat = async () => {
+    if (!appointmentId || !authToken) return
+    try {
+      const { data } = await axios.get(
+        `${backendUrl}/api/doctor/appointments/${appointmentId}/chat`,
+        { params: { after: lastChatIdRef.current }, headers: { dToken: authToken } }
+      )
+      if (data?.success) appendChatMessages(data.messages)
+    } catch (_) {}
+  }
+
+  const sendChat = async () => {
     const text = chatInput.trim()
     if (!text) return
-    setChatMessages((prev) => [...prev, { from: 'doctor', text, at: new Date() }])
     setChatInput('')
-    toast.info('Chat is local to this session until real-time messaging is connected.')
+    try {
+      const { data } = await axios.post(
+        `${backendUrl}/api/doctor/appointments/${appointmentId}/chat`,
+        { text },
+        { headers: { dToken: authToken } }
+      )
+      if (data?.success && data.message) appendChatMessages([data.message])
+      else toast.error(data?.message || 'Could not send message')
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Could not send message')
+    }
   }
+
+  useEffect(() => {
+    if (loading || callEndedMessage) return
+    fetchChat()
+    const timer = setInterval(fetchChat, 2500)
+    return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, callEndedMessage, appointmentId, authToken])
 
   if (loading) {
     return (
@@ -548,32 +620,48 @@ const DoctorVideoConsultRoom = ({
     )
   }
 
+  const statusLabel = callEndedMessage ? 'Ended' : callActive || remoteJoined ? 'In Progress' : 'Connecting'
+  const connectLabel = callEndedMessage
+    ? 'Disconnected'
+    : remoteJoined
+      ? 'Connected'
+      : 'Connecting…'
+
   return (
-    <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden min-h-[calc(100vh-120px)]">
+    <div className="flex flex-col bg-mc-bg rounded-2xl overflow-hidden min-h-[calc(100vh-120px)] lg:min-h-0 lg:h-[calc(100vh-104px)]">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-gradient-to-r from-white via-blue-50/30 to-teal-50/40">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3 border-b border-slate-200 bg-white">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
-            MC+
-          </div>
+          <button
+            type="button"
+            onClick={onLeave}
+            title="Back"
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-600 hover:bg-slate-100 shrink-0"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          </button>
           <div className="min-w-0">
-            <p className="font-bold text-slate-900 text-sm truncate">Video Consultation</p>
+            <p className="font-bold text-slate-900 text-base sm:text-lg truncate">Video Consultation</p>
             <p className="text-xs text-slate-500 truncate">
-              {patientName} · {apptLabel}
-              {scheduledTime ? ` · ${scheduledTime}` : ''}
+              Consultation ID: <span className="text-blue-600 font-semibold">{consultationId || apptLabel}</span>
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-700 text-xs font-semibold border border-red-100">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            {callStartedAtMs ? `LIVE · ${formatCallDuration(callSeconds)}` : 'CONNECTING · 00:00'}
-          </span>
-          {tokenNo ? (
-            <span className="px-3 py-1 rounded-full bg-teal-50 text-teal-800 text-xs font-semibold border border-teal-100">
-              Token #{tokenNo}
-            </span>
-          ) : null}
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Call Duration</p>
+            <p className="text-sm font-bold text-blue-600 tabular-nums">
+              {callStartedAtMs ? formatCallDuration(callSeconds) : '00:00'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleCallEnded('You ended the consultation.', { notifyServer: true })}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-semibold shadow-sm"
+          >
+            <svg className="w-4 h-4 rotate-[135deg]" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24 11.36 11.36 0 003.56.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.57a1 1 0 01-.25 1L6.62 10.79z" /></svg>
+            End Call
+          </button>
         </div>
       </div>
 
@@ -581,13 +669,14 @@ const DoctorVideoConsultRoom = ({
         <div className="px-5 py-2 bg-amber-50 border-b border-amber-100 text-amber-800 text-xs">{cameraHint}</div>
       )}
 
-      <div className="flex flex-1 flex-col lg:flex-row min-h-0">
-        {/* Video column — patient full, doctor PIP */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-[320px] lg:min-h-[480px]">
-          <div className="relative flex-1 bg-slate-900 min-h-[280px]">
+      <div className="flex flex-1 flex-col lg:flex-row min-h-0 gap-4 p-4 overflow-y-auto lg:overflow-hidden">
+        {/* Left column — video + consultation info */}
+        <div className="flex-1 flex flex-col min-w-0 gap-4 lg:overflow-y-auto">
+          {/* Video panel */}
+          <div ref={videoPanelRef} className="relative bg-slate-900 rounded-2xl overflow-hidden shadow-lg h-[340px] sm:h-[420px] lg:h-[460px] shrink-0">
             <div ref={remoteVideoRef} className="absolute inset-0 w-full h-full" />
 
-            {!remoteJoined && (
+            {!remoteJoined && !callEndedMessage && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white/80 px-6 text-center pointer-events-none z-10">
                 <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-4">
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -604,14 +693,24 @@ const DoctorVideoConsultRoom = ({
               </div>
             )}
 
-            {remoteJoined && (
-              <span className="absolute top-4 left-4 z-20 text-xs font-semibold text-white bg-emerald-600/90 px-3 py-1.5 rounded-lg shadow">
-                Patient{remoteVideoActive ? ' · video' : ' · audio'}
-              </span>
-            )}
+            {/* Connected pill */}
+            <span className="absolute top-4 left-4 z-20 inline-flex items-center gap-2 text-xs font-semibold text-white bg-slate-900/70 backdrop-blur px-3 py-1.5 rounded-lg">
+              <span className={`w-2 h-2 rounded-full ${remoteJoined ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              {connectLabel}
+            </span>
+
+            {/* Fullscreen */}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              title="Fullscreen"
+              className="absolute top-4 right-4 z-20 w-9 h-9 rounded-lg bg-slate-900/70 backdrop-blur hover:bg-slate-900/90 text-white flex items-center justify-center"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+            </button>
 
             {/* Doctor self-view PIP — mirrored */}
-            <div className="absolute top-4 right-4 z-20 w-36 sm:w-44 aspect-[3/4] rounded-xl overflow-hidden border-2 border-white/40 shadow-2xl bg-slate-800">
+            <div className="absolute bottom-20 sm:bottom-24 right-4 z-20 w-32 sm:w-44 aspect-[4/3] rounded-xl overflow-hidden border-2 border-white/60 shadow-2xl bg-slate-800">
               <div
                 ref={localVideoRef}
                 className={`w-full h-full ${publishCamera && !videoOff ? 'scale-x-[-1]' : ''}`}
@@ -621,275 +720,347 @@ const DoctorVideoConsultRoom = ({
                   {publishCamera ? 'Camera off' : 'You (camera off)'}
                 </div>
               ) : null}
-              <span className="absolute bottom-1 left-1 right-1 text-center text-[9px] text-white/90 bg-black/50 rounded py-0.5">
-                You (doctor)
-              </span>
+              {muted && (
+                <span className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 5L5 19" /></svg>
+                </span>
+              )}
             </div>
-          </div>
 
-          {/* Bottom toolbar */}
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 px-4 py-3 bg-white border-t border-slate-100">
-            <ToolbarButton label={muted ? 'Unmute' : 'Mic'} active={muted} onClick={toggleMute}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {muted ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            {/* Floating toolbar */}
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 flex items-end gap-3 sm:gap-4 bg-slate-900/80 backdrop-blur px-4 py-2.5 rounded-2xl shadow-xl">
+              <RoundCtrl label={muted ? 'Unmute' : 'Mute'} active={!muted} onClick={toggleMute}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {muted ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  )}
+                </svg>
+              </RoundCtrl>
+
+              {publishCamera ? (
+                <RoundCtrl label={videoOff ? 'Camera on' : 'Camera'} active={!videoOff} onClick={toggleVideo}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </RoundCtrl>
+              ) : (
+                <RoundCtrl label="Enable cam" onClick={enableMyCamera}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </RoundCtrl>
+              )}
+
+              <RoundCtrl label="Share" onClick={() => toast.info('Screen share coming soon')}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </RoundCtrl>
+
+              <RoundCtrl label="Chat" active={sidebarTab === 'chat'} onClick={openChat}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </RoundCtrl>
+
+              <div className="relative">
+                <RoundCtrl label="More" active={showMore} onClick={() => setShowMore((v) => !v)}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01" /></svg>
+                </RoundCtrl>
+                {showMore && (
+                  <div className="absolute bottom-14 right-0 w-44 bg-white rounded-xl shadow-2xl border border-slate-100 py-1.5 z-40">
+                    <button
+                      type="button"
+                      onClick={() => { setSpeakerOn((v) => !v); toast.info(speakerOn ? 'Speaker muted' : 'Speaker on'); setShowMore(false) }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+                      {speakerOn ? 'Mute speaker' : 'Unmute speaker'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { toggleFullscreen(); setShowMore(false) }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                      {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                    </button>
+                  </div>
                 )}
-              </svg>
-            </ToolbarButton>
-
-            {publishCamera ? (
-              <ToolbarButton label={videoOff ? 'Camera on' : 'Camera'} active={videoOff} onClick={toggleVideo}>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </ToolbarButton>
-            ) : (
-              <ToolbarButton label="Enable cam" onClick={enableMyCamera}>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </ToolbarButton>
-            )}
-
-            <ToolbarButton
-              label="Speaker"
-              active={!speakerOn}
-              onClick={() => {
-                setSpeakerOn((v) => !v)
-                toast.info(speakerOn ? 'Speaker muted (UI)' : 'Speaker on')
-              }}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-              </svg>
-            </ToolbarButton>
-
-            <ToolbarButton label="Screen" onClick={() => toast.info('Screen share coming soon')}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </ToolbarButton>
-
-            <ToolbarButton label="Chat" active={showChat} onClick={() => setShowChat((v) => !v)}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-            </ToolbarButton>
-
-            <ToolbarButton
-              label="End Consultation"
-              danger
-              onClick={() => handleCallEnded('You ended the consultation.', { notifyServer: true })}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 3l1.5 1.5M3 21l1.5-1.5M21 3l-1.5 1.5M21 21l-1.5-1.5" />
-              </svg>
-            </ToolbarButton>
-          </div>
-        </div>
-
-        {/* Clinical sidebar */}
-        <div className="w-full lg:w-[380px] xl:w-[400px] flex flex-col border-t lg:border-t-0 lg:border-l border-slate-200 bg-slate-50/80 min-h-0 max-h-[50vh] lg:max-h-none overflow-hidden">
-          <div className="shrink-0 p-4 pb-0">
-            <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-700">Prescription</p>
-                <p className="text-[11px] text-slate-500 truncate">
-                  {saveState === 'saving' || savingPrescription
-                    ? 'Saving…'
-                    : saveState === 'dirty'
-                      ? 'Unsaved changes'
-                      : saveState === 'saved' && lastSavedAt
-                        ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                        : 'Save anytime during the call'}
-                </p>
               </div>
+
               <button
                 type="button"
-                onClick={() => saveConsultationDraft()}
-                disabled={savingPrescription || saveState === 'saving'}
-                className="shrink-0 px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-xs font-bold uppercase tracking-wide"
+                onClick={() => handleCallEnded('You ended the consultation.', { notifyServer: true })}
+                title="End Call"
+                className="flex flex-col items-center gap-1"
               >
-                Save
+                <span className="inline-flex items-center gap-2 h-11 px-4 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold shadow">
+                  <svg className="w-4 h-4 rotate-[135deg]" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24 11.36 11.36 0 003.56.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.57a1 1 0 01-.25 1L6.62 10.79z" /></svg>
+                  End Call
+                </span>
+                <span className="text-[10px] font-medium text-transparent">.</span>
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* Patient profile */}
-            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-3">Patient Profile</h3>
-              <div className="flex items-center gap-3 mb-3">
-                <img src={patientImage} alt="" className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-100" />
-                <div>
-                  <p className="font-bold text-slate-900">{patientName}</p>
-                  <p className="text-xs text-slate-500">Video consultation</p>
-                </div>
+
+          {/* Consultation Information */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 shrink-0">
+            <div className="flex items-center gap-2.5 mb-4">
+              <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-600">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              </span>
+              <h3 className="text-base font-bold text-slate-900">Consultation Information</h3>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-400 font-medium">Consultation ID</p>
+                <p className="text-sm font-semibold text-slate-800 mt-0.5 truncate">{consultationId || apptLabel}</p>
               </div>
-              <dl className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <dt className="text-slate-400">Age</dt>
-                  <dd className="font-semibold text-slate-800">{patientAge}</dd>
-                </div>
-                <div>
-                  <dt className="text-slate-400">Gender</dt>
-                  <dd className="font-semibold text-slate-800 capitalize">{patientGender}</dd>
-                </div>
-                <div className="col-span-2">
-                  <dt className="text-slate-400">Appointment</dt>
-                  <dd className="font-semibold text-slate-800">{apptLabel}</dd>
-                </div>
-                <div className="col-span-2">
-                  <dt className="text-slate-400">Fee</dt>
-                  <dd className="font-semibold text-teal-700">
-                    {currency}
-                    {appointment?.amount ?? '—'}
-                    {appointment?.payment ? ' · Paid' : ''}
-                  </dd>
-                </div>
-              </dl>
-            </section>
+              <div className="min-w-0">
+                <p className="text-xs text-slate-400 font-medium">Appointment Time</p>
+                <p className="text-sm font-semibold text-slate-800 mt-0.5 truncate">{scheduledTime || '—'}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-slate-400 font-medium">Consultation Type</p>
+                <span className="inline-flex items-center mt-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">Online Video</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-slate-400 font-medium">Status</p>
+                <span className={`inline-flex items-center mt-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                  statusLabel === 'Ended' ? 'bg-slate-100 text-slate-600' : statusLabel === 'In Progress' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                }`}>{statusLabel}</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-            {/* Symptoms */}
-            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Symptoms</h3>
-              {symptoms.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {symptoms.map((s, i) => (
-                    <span key={i} className="px-2 py-1 rounded-lg bg-teal-50 text-teal-800 text-xs border border-teal-100">
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400">No symptoms recorded for this booking.</p>
+        {/* Right sidebar */}
+        <div className="w-full lg:w-[360px] xl:w-[380px] shrink-0 flex flex-col gap-4 lg:overflow-y-auto">
+          {/* Patient Details */}
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 text-blue-600">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                </span>
+                <h3 className="text-base font-bold text-slate-900">Patient Details</h3>
+              </div>
+              {appointment?.payment && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                  Verified
+                </span>
               )}
-              {patientBookingNotes.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-slate-100">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Patient notes at booking</p>
-                  <p className="text-xs text-slate-700 leading-relaxed">{patientBookingNotes.join(' · ')}</p>
-                </div>
-              )}
-            </section>
+            </div>
+            <div className="flex items-center gap-3 mb-4">
+              <img src={patientImage} alt="" className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-100" />
+              <div className="min-w-0">
+                <p className="font-bold text-slate-900 truncate">{patientName}</p>
+                <p className="text-xs text-slate-500">{patientAge} Years, <span className="capitalize">{patientGender}</span></p>
+              </div>
+            </div>
+            <dl className="space-y-2.5 text-sm">
+              <div className="flex gap-3">
+                <dt className="w-16 shrink-0 text-slate-400 text-xs pt-0.5">Phone</dt>
+                <dd className="font-medium text-slate-800 break-all">{patientPhone}</dd>
+              </div>
+              <div className="flex gap-3">
+                <dt className="w-16 shrink-0 text-slate-400 text-xs pt-0.5">Email</dt>
+                <dd className="font-medium text-slate-800 break-all">{patientEmail}</dd>
+              </div>
+              <div className="flex gap-3">
+                <dt className="w-16 shrink-0 text-slate-400 text-xs pt-0.5">Address</dt>
+                <dd className="font-medium text-slate-800">{patientAddress}</dd>
+              </div>
+            </dl>
+          </section>
 
-            {/* Medical history placeholder */}
-            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Medical History</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Review full records in Patient Reports after the call. Allergies and chronic conditions can be noted below.
-              </p>
-            </section>
-
-            {/* Uploaded reports */}
-            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Uploaded Reports</h3>
-              {appointment?.actualPatient?.prescription ? (
-                <a
-                  href={appointment.actualPatient.prescription}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-blue-600 hover:underline font-medium"
+          {/* Tabs: Chat / Prescription */}
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col flex-1 min-h-[360px] overflow-hidden">
+            <div className="flex border-b border-slate-100">
+              {[
+                { id: 'chat', label: 'Chat' },
+                { id: 'prescription', label: 'Prescription' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSidebarTab(tab.id)}
+                  className={`flex-1 py-3 text-sm font-semibold transition-colors relative ${
+                    sidebarTab === tab.id ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                  }`}
                 >
-                  View prescription uploaded at booking
-                </a>
-              ) : (
-                <p className="text-xs text-slate-400">No reports attached to this appointment.</p>
-              )}
-            </section>
+                  {tab.label}
+                  {sidebarTab === tab.id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />}
+                </button>
+              ))}
+            </div>
 
-            {/* Diagnosis */}
-            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Diagnosis</h3>
-              <textarea
-                value={diagnosis}
-                onChange={(e) => setDiagnosis(e.target.value)}
-                rows={2}
-                placeholder="Primary diagnosis…"
-                className="w-full text-xs border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-y"
-              />
-            </section>
-
-            {/* Prescription editor */}
-            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Prescription Editor</h3>
-              <textarea
-                value={prescription}
-                onChange={(e) => setPrescription(e.target.value)}
-                rows={4}
-                placeholder="Medicines, dosage, duration…"
-                className="w-full text-xs border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-y"
-              />
-            </section>
-
-            {/* Consultation notes */}
-            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Clinical notes</h3>
-              <textarea
-                value={consultNotes}
-                onChange={(e) => setConsultNotes(e.target.value)}
-                rows={3}
-                placeholder="Exam findings, vitals…"
-                className="w-full text-xs border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-y"
-              />
-            </section>
-
-            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Advice to patient</h3>
-              <textarea
-                value={advice}
-                onChange={(e) => setAdvice(e.target.value)}
-                rows={2}
-                placeholder="Diet, rest, warning signs…"
-                className="w-full text-xs border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-y"
-              />
-            </section>
-
-            <section className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Follow-up date</h3>
-              <input
-                type="date"
-                value={followupDate}
-                onChange={(e) => setFollowupDate(e.target.value)}
-                className="w-full text-xs border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
-              />
-            </section>
-
-            {/* Chat panel */}
-            {showChat && (
-              <section className="bg-white rounded-xl border border-blue-100 p-4 shadow-sm">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Chat</h3>
-                <div className="h-32 overflow-y-auto mb-2 space-y-2 bg-slate-50 rounded-lg p-2">
+            {sidebarTab === 'chat' ? (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/60">
                   {chatMessages.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-4">No messages yet</p>
+                    <p className="text-xs text-slate-400 text-center py-6">No messages yet. Say hello to your patient.</p>
                   ) : (
                     chatMessages.map((m, i) => (
-                      <div key={i} className="text-xs bg-blue-50 text-slate-800 rounded-lg px-2 py-1.5 self-end">
-                        {m.text}
+                      <div key={i} className={`flex ${m.from === 'doctor' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] text-xs rounded-2xl px-3 py-2 ${m.from === 'doctor' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm'}`}>
+                          {m.text}
+                          <span className={`block text-[9px] mt-1 ${m.from === 'doctor' ? 'text-white/70' : 'text-slate-400'}`}>
+                            {m.at?.toLocaleTimeString?.([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
                       </div>
                     ))
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="p-3 border-t border-slate-100 flex items-center gap-2">
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-                    placeholder="Message patient…"
-                    className="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400"
+                    placeholder="Type a message…"
+                    className="flex-1 text-sm border border-slate-200 rounded-full px-4 py-2 outline-none focus:border-blue-400"
                   />
                   <button
                     type="button"
                     onClick={sendChat}
-                    className="px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700"
+                    className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shrink-0"
                   >
-                    Send
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
                   </button>
                 </div>
-              </section>
+              </div>
+            ) : (
+              <div className="flex flex-col flex-1 min-h-0">
+                {/* Save bar */}
+                <div className="shrink-0 p-3 border-b border-slate-100 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-slate-500 truncate">
+                      {saveState === 'saving' || savingPrescription
+                        ? 'Saving…'
+                        : saveState === 'dirty'
+                          ? 'Unsaved changes'
+                          : saveState === 'saved' && lastSavedAt
+                            ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                            : 'Save anytime during the call'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => saveConsultationDraft()}
+                    disabled={savingPrescription || saveState === 'saving'}
+                    className="shrink-0 px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-xs font-bold uppercase tracking-wide"
+                  >
+                    Save
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {/* Symptoms */}
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Symptoms</p>
+                    {symptoms.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {symptoms.map((s, i) => (
+                          <span key={i} className="px-2 py-1 rounded-lg bg-teal-50 text-teal-800 text-xs border border-teal-100">{s}</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400">No symptoms recorded for this booking.</p>
+                    )}
+                    {patientBookingNotes.length > 0 && (
+                      <p className="text-xs text-slate-600 mt-2 leading-relaxed"><span className="font-semibold">Notes:</span> {patientBookingNotes.join(' · ')}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Uploaded Reports</p>
+                    {bookingReportUrl ? (
+                      <a
+                        href={bookingReportUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline font-medium"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        View report uploaded at booking
+                      </a>
+                    ) : (
+                      <p className="text-xs text-slate-400">No reports uploaded for this booking.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Diagnosis</p>
+                    <textarea
+                      value={diagnosis}
+                      onChange={(e) => setDiagnosis(e.target.value)}
+                      rows={2}
+                      placeholder="Primary diagnosis…"
+                      className="w-full text-xs border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-y"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Prescription</p>
+                    <textarea
+                      value={prescription}
+                      onChange={(e) => setPrescription(e.target.value)}
+                      rows={4}
+                      placeholder="Medicines, dosage, duration…"
+                      className="w-full text-xs border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-y"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Clinical notes</p>
+                    <textarea
+                      value={consultNotes}
+                      onChange={(e) => setConsultNotes(e.target.value)}
+                      rows={3}
+                      placeholder="Exam findings, vitals…"
+                      className="w-full text-xs border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-y"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Advice to patient</p>
+                    <textarea
+                      value={advice}
+                      onChange={(e) => setAdvice(e.target.value)}
+                      rows={2}
+                      placeholder="Diet, rest, warning signs…"
+                      className="w-full text-xs border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-y"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">Follow-up date</p>
+                    <input
+                      type="date"
+                      value={followupDate}
+                      onChange={(e) => setFollowupDate(e.target.value)}
+                      className="w-full text-xs border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
             )}
-          </div>
+          </section>
+
+          {/* View appointment details */}
+          <button
+            type="button"
+            onClick={() => toast.info(`Appointment ${apptLabel}${scheduledTime ? ` · ${scheduledTime}` : ''}`)}
+            className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold shadow-sm"
+          >
+            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+            View Appointment Details
+          </button>
         </div>
       </div>
 

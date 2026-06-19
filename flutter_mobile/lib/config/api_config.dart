@@ -139,6 +139,8 @@ class ApiConfig {
       '/api/user/appointments/$appointmentId/sync-call-timer';
   static String endVideoCallForAppointment(String appointmentId) =>
       '/api/user/appointments/$appointmentId/end-video-call';
+  static String chatForAppointment(String appointmentId) =>
+      '/api/user/appointments/$appointmentId/chat';
   static const String consultationCreate = '/api/user/consultation/create';
   static String doctorSlots(String doctorId) => '/api/ai/doctor-slots/$doctorId';
   static String doctorScheduleSlots(String doctorId, {String mode = 'offline'}) =>

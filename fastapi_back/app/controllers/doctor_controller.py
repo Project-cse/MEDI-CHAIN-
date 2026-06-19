@@ -251,10 +251,27 @@ async def update_doctor_profile(doc_id: int, form_data: dict, image=None):
             st = form_data['status']
             update_data['status'] = st
             # Sync available field if status is provided
-            if st in ('available', 'busy'):
+            if st in ('available', 'busy', 'online', 'in-clinic', 'inclinic'):
                 update_data['available'] = True
-            elif st in ('unavailable', 'emergency'):
+            elif st in ('unavailable', 'emergency', 'offline', 'inactive'):
                 update_data['available'] = False
+
+        if form_data.get('opStart') is not None:
+            update_data['op_start'] = form_data['opStart']
+
+        if form_data.get('opEnd') is not None:
+            update_data['op_end'] = form_data['opEnd']
+
+        if form_data.get('availableDays') is not None:
+            import json as _json
+            days_val = form_data['availableDays']
+            if isinstance(days_val, str):
+                try:
+                    days_val = _json.loads(days_val)
+                except Exception:
+                    days_val = [d.strip() for d in days_val.split(',') if d.strip()]
+            if isinstance(days_val, list):
+                update_data['available_days'] = [str(d) for d in days_val]
 
         if image and image.filename:
             file_bytes = await image.read()

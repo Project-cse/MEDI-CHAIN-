@@ -752,6 +752,12 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
         if prescription_url:
             actual_patient['prescription'] = prescription_url
 
+        # Persist the uploaded report on the appointment snapshot (userData JSON is
+        # stored/returned) so the doctor can view it during the consultation.
+        booking_user_data = format_user(user_data) or {}
+        if prescription_url:
+            booking_user_data['bookingReportUrl'] = prescription_url
+
         visit_type = (req_body.get('visitType') or req_body.get('visit_type') or '').strip()
         mode = req_body.get('mode')
         if resolved_slot:
@@ -782,7 +788,7 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
         appointment_data = {
             "userId": user_id,
             "docId": db_doc_id,
-            "userData": format_user(user_data),
+            "userData": booking_user_data,
             "docData": format_doctor(doc_data),
             "amount": fee_amount,
             "consultationFee": fee_amount,
