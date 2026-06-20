@@ -68,27 +68,40 @@ class _OnboardingEmergencyStepState extends ConsumerState<OnboardingEmergencySte
 
     setState(() => _saving = true);
     try {
-      // 1) Save locally FIRST so the contact is never lost on a flaky network.
+      // The contact must be persisted on the server before we move on. The
+      // backend de-duplicates by phone, so a retry after a flaky failure
+      // updates the same row instead of creating a second one.
+      await ref
+          .read(onboardingServiceProvider)
+          .addEmergencyContact(
+            name: contact.name,
+            phone: contact.phone,
+            relation: contact.relation ?? '',
+          )
+          .timeout(const Duration(seconds: 15));
+      // Mirror it locally only after the server confirms the save.
       await ref.read(emergencySettingsProvider.notifier).upsertPrimaryContact(contact);
-      // 2) Push to the backend, but don't let a slow/down server block onboarding.
-      try {
-        await ref
-            .read(onboardingServiceProvider)
-            .addEmergencyContact(
-              name: contact.name,
-              phone: contact.phone,
-              relation: contact.relation ?? '',
-            )
-            .timeout(const Duration(seconds: 10));
-      } catch (_) {}
       if (!mounted) return;
-      // 3) Advance — completeEmergencyContact moves forward from local truth.
       await ref.read(onboardingProvider.notifier).completeEmergencyContact();
-    } catch (e) {
-      if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
-    } finally {
-      if (mounted) setState(() => _saving = false);
+    } catch (_) {
+      // Network/backend failure — keep what they typed and ask them to retry.
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: const Color(0xFFB91C1C),
+            content: Text(
+              context.l10n.onboardingEmergencySaveFailed,
+              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+        );
+      return;
     }
+    if (mounted) setState(() => _saving = false);
   }
 
   @override

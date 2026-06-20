@@ -1174,6 +1174,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'You can add a second contact later in Emergency settings.';
 
   @override
+  String get onboardingEmergencySaveFailed =>
+      'Could not save your emergency contact. Please check your connection and re-enter the details.';
+
+  @override
   String get onboardingStartUsing => 'Start Using MEDCLUES';
 
   @override

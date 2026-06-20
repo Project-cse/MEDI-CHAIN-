@@ -159,18 +159,36 @@ async def add_emergency_contact(user_id: int, contact_data: Dict[str, Any]):
         or contact_data.get('type')
         or 'family'
     )
+    name = contact_data.get('name')
+    phone = contact_data.get('phone')
+    relation = contact_data.get('relation')
+
+    # Idempotent: a given user must not accumulate duplicate rows for the same
+    # phone number (e.g. if a flaky network makes the client retry the save).
+    # Update the existing record instead of inserting a second one.
+    if phone:
+        existing = await db.fetch_row(
+            'SELECT * FROM emergency_contacts WHERE user_id = $1 AND phone = $2 LIMIT 1',
+            user_id,
+            phone,
+        )
+        if existing:
+            update_sql = """
+                UPDATE emergency_contacts SET
+                    name = COALESCE($1, name),
+                    relation = COALESCE($2, relation),
+                    contact_type = COALESCE($3, contact_type)
+                WHERE id = $4
+                RETURNING *
+            """
+            return await db.fetch_row(update_sql, name, relation, contact_type, existing.get('id'))
+
     sql = """
         INSERT INTO emergency_contacts (user_id, name, phone, relation, contact_type)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING *
     """
-    values = (
-        user_id,
-        contact_data.get('name'),
-        contact_data.get('phone'),
-        contact_data.get('relation'),
-        contact_type,
-    )
+    values = (user_id, name, phone, relation, contact_type)
     return await db.fetch_row(sql, *values)
 
 async def delete_emergency_contact(contact_id: int):

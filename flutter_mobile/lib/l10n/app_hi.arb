@@ -411,6 +411,7 @@
   "onboardingEmergencyContact": "आपातकालीन संपर्क",
   "onboardingEmergencyDesc": "आपात स्थिति में जिसे हम सूचित कर सकें, एक व्यक्ति जोड़ें।",
   "onboardingEmergencySecondLater": "दूसरा संपर्क बाद में Emergency settings में जोड़ सकते हैं।",
+  "onboardingEmergencySaveFailed": "आपका आपातकालीन संपर्क सहेजा नहीं जा सका। कृपया अपना कनेक्शन जांचें और विवरण दोबारा दर्ज करें।",
   "onboardingStartUsing": "MEDCLUES का उपयोग शुरू करें",
   "onboardingAllSet": "आप तैयार हैं!",
   "tourHomeTitle": "होम",

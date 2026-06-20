@@ -411,6 +411,7 @@
   "onboardingEmergencyContact": "అత్యవసర సంప్రదింపు",
   "onboardingEmergencyDesc": "అత్యవసర సమయంలో మేము సమాచారం ఇవ్వగల ఒక వ్యక్తిని జోడించండి.",
   "onboardingEmergencySecondLater": "రెండవ సంప్రదింపును తర్వాత Emergency settingsలో జోడించవచ్చు.",
+  "onboardingEmergencySaveFailed": "మీ అత్యవసర సంప్రదింపును సేవ్ చేయలేకపోయాం. దయచేసి మీ కనెక్షన్‌ను తనిఖీ చేసి వివరాలను మళ్లీ నమోదు చేయండి.",
   "onboardingStartUsing": "MEDCLUES వినియోగం ప్రారంభించండి",
   "onboardingAllSet": "మీరు సిద్ధంగా ఉన్నారు!",
   "tourHomeTitle": "హోమ్",

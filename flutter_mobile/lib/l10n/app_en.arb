@@ -440,6 +440,7 @@
   "onboardingEmergencyContact": "Emergency Contact",
   "onboardingEmergencyDesc": "Add one person we can alert in an emergency.",
   "onboardingEmergencySecondLater": "You can add a second contact later in Emergency settings.",
+  "onboardingEmergencySaveFailed": "Could not save your emergency contact. Please check your connection and re-enter the details.",
   "onboardingStartUsing": "Start Using MEDCLUES",
   "onboardingAllSet": "You're ready to go!",
   "tourHomeTitle": "Home",

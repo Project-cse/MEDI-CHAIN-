@@ -1182,6 +1182,10 @@ class AppLocalizationsTe extends AppLocalizations {
       'రెండవ సంప్రదింపును తర్వాత Emergency settingsలో జోడించవచ్చు.';
 
   @override
+  String get onboardingEmergencySaveFailed =>
+      'మీ అత్యవసర సంప్రదింపును సేవ్ చేయలేకపోయాం. దయచేసి మీ కనెక్షన్‌ను తనిఖీ చేసి వివరాలను మళ్లీ నమోదు చేయండి.';
+
+  @override
   String get onboardingStartUsing => 'MEDCLUES వినియోగం ప్రారంభించండి';
 
   @override

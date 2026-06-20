@@ -1174,6 +1174,10 @@ class AppLocalizationsHi extends AppLocalizations {
       'दूसरा संपर्क बाद में Emergency settings में जोड़ सकते हैं।';
 
   @override
+  String get onboardingEmergencySaveFailed =>
+      'आपका आपातकालीन संपर्क सहेजा नहीं जा सका। कृपया अपना कनेक्शन जांचें और विवरण दोबारा दर्ज करें।';
+
+  @override
   String get onboardingStartUsing => 'MEDCLUES का उपयोग शुरू करें';
 
   @override

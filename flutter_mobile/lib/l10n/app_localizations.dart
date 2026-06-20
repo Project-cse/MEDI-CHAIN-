@@ -2326,6 +2326,12 @@ abstract class AppLocalizations {
   /// **'You can add a second contact later in Emergency settings.'**
   String get onboardingEmergencySecondLater;
 
+  /// No description provided for @onboardingEmergencySaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save your emergency contact. Please check your connection and re-enter the details.'**
+  String get onboardingEmergencySaveFailed;
+
   /// No description provided for @onboardingStartUsing.
   ///
   /// In en, this message translates to:
