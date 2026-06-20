@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ReceptionContext } from '../../context/ReceptionContext'
 import {
   PageWrap, RcHeader, Pill, Spinner, Avatar, EmptyState,
-  patientName, doctorName, tokenLabel,
+  patientName, doctorName, tokenLabel, ReceptionTabs, RECEPTION_TAB_GROUPS,
 } from './components'
 
 const TABS = [
@@ -43,13 +43,14 @@ const QueueManagement = () => {
 
   return (
     <PageWrap>
-      <RcHeader title='Queue Management' subtitle="Manage today's patient queue"
+      <RcHeader title='Queue' subtitle="Manage today's patient queue"
         right={
           <select value={docFilter} onChange={(e) => setDocFilter(e.target.value)} className='px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-semibold text-slate-600 shadow-sm'>
             <option value=''>All Doctors</option>
             {doctors.map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
           </select>
         } />
+      <ReceptionTabs items={RECEPTION_TAB_GROUPS.queue} />
 
       <div className='flex items-center gap-2 mb-4 flex-wrap'>
         {TABS.map((t) => (

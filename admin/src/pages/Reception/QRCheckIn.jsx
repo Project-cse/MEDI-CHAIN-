@@ -1,7 +1,7 @@
 import React, { useContext, useRef, useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
 import { ReceptionContext } from '../../context/ReceptionContext'
-import { PageWrap, RcHeader, Avatar, Pill, EmptyState } from './components'
+import { PageWrap, RcHeader, Avatar, Pill, EmptyState, ReceptionTabs, RECEPTION_TAB_GROUPS } from './components'
 
 const inputCls = 'w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-reception outline-none text-sm font-medium text-slate-700'
 
@@ -61,7 +61,8 @@ const QRCheckIn = () => {
 
   return (
     <PageWrap>
-      <RcHeader title='QR Check-In' subtitle='Scan patient QR code or enter booking ID' />
+      <RcHeader title='Check-In' subtitle='Scan patient QR code or enter booking ID' />
+      <ReceptionTabs items={RECEPTION_TAB_GROUPS.checkin} />
 
       <div className='grid lg:grid-cols-2 gap-5'>
         <div className='bg-white rounded-2xl border border-slate-100 shadow-sm p-5'>

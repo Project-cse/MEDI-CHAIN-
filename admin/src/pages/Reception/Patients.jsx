@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react'
 import { ReceptionContext } from '../../context/ReceptionContext'
-import { PageWrap, RcHeader, Avatar, EmptyState, Spinner } from './components'
+import { PageWrap, RcHeader, Avatar, EmptyState, Spinner, ReceptionTabs, RECEPTION_TAB_GROUPS } from './components'
 
 const TYPE_STYLES = {
   Online: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
@@ -24,6 +24,18 @@ const PaidBadge = ({ paid }) => (
     {paid ? 'Paid' : 'Unpaid'}
   </span>
 )
+
+const ModeBadge = ({ mode }) => {
+  const k = String(mode || '').toLowerCase()
+  const isVideo = k === 'video' || k.includes('online')
+  if (!k) return <span className='text-slate-400'>—</span>
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ring-1 ${isVideo ? 'bg-sky-50 text-sky-700 ring-sky-200' : 'bg-teal-50 text-teal-700 ring-teal-200'}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${isVideo ? 'bg-sky-500' : 'bg-teal-500'}`} />
+      {isVideo ? 'Online (Video)' : 'In-clinic'}
+    </span>
+  )
+}
 
 const BookingBadge = ({ cancelled }) => (
   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ring-1 ${cancelled ? 'bg-rose-50 text-rose-600 ring-rose-200' : 'bg-emerald-50 text-emerald-700 ring-emerald-200'}`}>
@@ -103,6 +115,7 @@ const Patients = () => {
   return (
     <PageWrap>
       <RcHeader title='Patients' subtitle='All patients registered at your hospital' />
+      <ReceptionTabs items={RECEPTION_TAB_GROUPS.patients} />
 
       {/* Corporate stat strip */}
       <div className='bg-white rounded-xl border border-slate-200 shadow-sm mb-5 flex flex-wrap divide-x divide-slate-100'>
@@ -160,6 +173,7 @@ const Patients = () => {
                   <th className='px-5 py-3 font-semibold'>Gender / Age</th>
                   <th className='px-5 py-3 font-semibold'>Email</th>
                   <th className='px-5 py-3 font-semibold'>Type</th>
+                  <th className='px-5 py-3 font-semibold'>Mode</th>
                   <th className='px-5 py-3 font-semibold'>Payment</th>
                   <th className='px-5 py-3 font-semibold'>Paid</th>
                   <th className='px-5 py-3 font-semibold'>Booking</th>
@@ -181,6 +195,7 @@ const Patients = () => {
                     <td className='px-5 py-3 text-slate-600'>{[p.gender, p.age].filter((v) => v && v !== 'Not Selected').join(' · ') || '—'}</td>
                     <td className='px-5 py-3 text-slate-500'>{p.email || '—'}</td>
                     <td className='px-5 py-3'><TypeBadge type={p.type} /></td>
+                    <td className='px-5 py-3'><ModeBadge mode={p.mode} /></td>
                     <td className='px-5 py-3 text-slate-600'>{fmtPayMethod(p.paymentMethod)}</td>
                     <td className='px-5 py-3'><PaidBadge paid={p.paid} /></td>
                     <td className='px-5 py-3'><BookingBadge cancelled={p.cancelled} /></td>

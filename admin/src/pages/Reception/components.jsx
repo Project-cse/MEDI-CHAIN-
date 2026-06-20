@@ -1,6 +1,47 @@
 import React from 'react'
+import { NavLink } from 'react-router-dom'
 
 export const fmtMoney = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
+
+// ── Secondary tab navigation for grouped reception pages ──────────────────────
+export const RECEPTION_TAB_GROUPS = {
+  checkin: [
+    { label: 'Online Bookings', to: '/reception-online' },
+    { label: 'Walk-In', to: '/reception-walkin' },
+    { label: 'QR Check-In', to: '/reception-checkin' },
+  ],
+  queue: [
+    { label: 'Live Queue', to: '/reception-queue' },
+    { label: 'No-Shows', to: '/reception-noshows' },
+  ],
+  patients: [
+    { label: 'All Patients', to: '/reception-patients' },
+    { label: 'Follow-Ups', to: '/reception-followups' },
+  ],
+  billing: [
+    { label: 'Payments', to: '/reception-payments' },
+    { label: 'Refund Requests', to: '/reception-refunds' },
+  ],
+}
+
+export const ReceptionTabs = ({ items = [] }) => (
+  <div className='flex items-center gap-1 mb-5 bg-white border border-slate-200 rounded-xl p-1 shadow-sm w-fit max-w-full overflow-x-auto'>
+    {items.map((it) => (
+      <NavLink
+        key={it.to}
+        to={it.to}
+        end
+        className={({ isActive }) =>
+          `px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors ${
+            isActive ? 'bg-reception text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+          }`
+        }
+      >
+        {it.label}
+      </NavLink>
+    ))}
+  </div>
+)
 
 export const patientName = (a) =>
   a?.actualPatient?.name || a?.userData?.name || 'Patient'

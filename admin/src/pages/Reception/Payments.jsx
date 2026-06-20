@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { ReceptionContext } from '../../context/ReceptionContext'
-import { PageWrap, RcHeader, Pill, Spinner, Avatar, EmptyState, fmtMoney, patientName, doctorName } from './components'
+import { PageWrap, RcHeader, Pill, Spinner, Avatar, EmptyState, fmtMoney, patientName, doctorName, ReceptionTabs, RECEPTION_TAB_GROUPS } from './components'
 
 const Payments = () => {
   const { getPayments, collectPayment, requestRefund } = useContext(ReceptionContext)
@@ -18,8 +18,9 @@ const Payments = () => {
 
   return (
     <PageWrap>
-      <RcHeader title='Payments' subtitle="Today's payment collection"
+      <RcHeader title='Billing' subtitle="Today's payment collection"
         right={<span className='px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold'>Collected: {fmtMoney(collected)}</span>} />
+      <ReceptionTabs items={RECEPTION_TAB_GROUPS.billing} />
       <div className='bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden'>
         {loading ? <Spinner /> : rows.length === 0 ? <EmptyState title='No payments today' /> : (
           <div className='overflow-x-auto'>

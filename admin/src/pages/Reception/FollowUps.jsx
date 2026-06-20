@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { ReceptionContext } from '../../context/ReceptionContext'
-import { PageWrap, RcHeader, Pill, Spinner, Avatar, EmptyState, patientName, doctorName } from './components'
+import { PageWrap, RcHeader, Pill, Spinner, Avatar, EmptyState, patientName, doctorName, ReceptionTabs, RECEPTION_TAB_GROUPS } from './components'
 
 const FollowUps = () => {
   const { getFollowups, useFollowup } = useContext(ReceptionContext)
@@ -15,8 +15,9 @@ const FollowUps = () => {
 
   return (
     <PageWrap>
-      <RcHeader title='Follow-Ups' subtitle='Patients eligible for a follow-up visit'
+      <RcHeader title='Patients' subtitle='Patients eligible for a follow-up visit'
         right={<button onClick={load} className='px-3 py-2 rounded-xl bg-reception text-white text-sm font-semibold shadow-sm hover:bg-blue-700'>Refresh</button>} />
+      <ReceptionTabs items={RECEPTION_TAB_GROUPS.patients} />
       <div className='bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden'>
         {loading ? <Spinner /> : rows.length === 0 ? <EmptyState title='No follow-ups available' /> : (
           <div className='overflow-x-auto'>

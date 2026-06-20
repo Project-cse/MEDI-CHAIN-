@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { ReceptionContext } from '../../context/ReceptionContext'
-import { PageWrap, RcHeader, Pill, Spinner, Avatar, EmptyState, patientName, doctorName } from './components'
+import { PageWrap, RcHeader, Pill, Spinner, Avatar, EmptyState, patientName, doctorName, ReceptionTabs, RECEPTION_TAB_GROUPS } from './components'
 
 const NoShows = () => {
   const { getNoShows } = useContext(ReceptionContext)
@@ -12,8 +12,9 @@ const NoShows = () => {
 
   return (
     <PageWrap>
-      <RcHeader title='No-Shows' subtitle='Patients who missed their appointment'
+      <RcHeader title='Queue' subtitle='Patients who missed their appointment'
         right={<button onClick={load} className='px-3 py-2 rounded-xl bg-reception text-white text-sm font-semibold shadow-sm hover:bg-blue-700'>Refresh</button>} />
+      <ReceptionTabs items={RECEPTION_TAB_GROUPS.queue} />
       <div className='bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden'>
         {loading ? <Spinner /> : rows.length === 0 ? <EmptyState title='No no-shows recorded' /> : (
           <div className='overflow-x-auto'>

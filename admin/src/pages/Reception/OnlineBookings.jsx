@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ReceptionContext } from '../../context/ReceptionContext'
 import {
   PageWrap, RcHeader, Pill, Spinner, Avatar, EmptyState,
-  patientName, doctorName,
+  patientName, doctorName, ReceptionTabs, RECEPTION_TAB_GROUPS,
 } from './components'
 
 const TABS = [
@@ -57,8 +57,9 @@ const OnlineBookings = () => {
 
   return (
     <PageWrap>
-      <RcHeader title='Online Bookings' subtitle="Verify and manage today's online appointments"
+      <RcHeader title='Check-In' subtitle="Verify and manage today's online appointments"
         right={<button onClick={load} className='px-3 py-2 rounded-xl bg-reception text-white text-sm font-semibold shadow-sm hover:bg-blue-700'>Refresh</button>} />
+      <ReceptionTabs items={RECEPTION_TAB_GROUPS.checkin} />
 
       <div className='flex items-center gap-2 mb-4 flex-wrap'>
         {TABS.map((t) => (

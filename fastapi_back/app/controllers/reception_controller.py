@@ -413,7 +413,8 @@ async def list_patients(hospital_id: Optional[int], date: Optional[str] = None):
             continue
         s = stats.setdefault(uid, {
             "visits": 0, "online": 0, "walkIn": 0, "lastTs": None, "lastDate": None,
-            "lastPayMethod": None, "lastPaid": False, "lastCancelled": False, "lastSource": "ONLINE",
+            "lastPayMethod": None, "lastPaid": False, "lastCancelled": False,
+            "lastSource": "ONLINE", "lastMode": None,
         })
         s["visits"] += 1
         if _appt_source(a) == "ONLINE":
@@ -428,6 +429,7 @@ async def list_patients(hospital_id: Optional[int], date: Optional[str] = None):
             s["lastPaid"] = _is_paid(a)
             s["lastCancelled"] = _is_cancelled(a)
             s["lastSource"] = _appt_source(a)
+            s["lastMode"] = a.get("mode")
 
     if not stats:
         return {"success": True, "patients": [], "total": 0}
@@ -451,6 +453,7 @@ async def list_patients(hospital_id: Optional[int], date: Optional[str] = None):
         base["paid"] = bool(s["lastPaid"])
         base["cancelled"] = bool(s["lastCancelled"])
         base["bookingStatus"] = "Cancelled" if s["lastCancelled"] else "Active"
+        base["mode"] = s["lastMode"]
         out.append(base)
 
     # Latest first, then push cancelled patients to the bottom (stable sort keeps date order).

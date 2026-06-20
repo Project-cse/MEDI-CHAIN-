@@ -83,21 +83,33 @@ All staff log in from a single screen (`src/pages/Login.jsx`) and select their r
 
 Folder: `src/pages/Reception/` · Context: `src/context/ReceptionContext.jsx` · API prefix: `/api/reception`.
 
-| Screen | File | Purpose |
-|--------|------|---------|
-| Dashboard | `ReceptionDashboard.jsx` | Today's KPIs — online vs walk-in split, queue snapshot |
-| Online Bookings | `OnlineBookings.jsx` | App bookings awaiting verification / token |
-| Walk-In Registration | `WalkInRegistration.jsx` | Multi-step offline patient registration + booking |
-| QR Check-In | `QRCheckIn.jsx` | Scan patient QR to mark arrival |
-| Queue Management | `QueueManagement.jsx` | Unified per-doctor/day token queue |
-| Patients | `Patients.jsx` | All hospital patients — type, payment, paid, cancelled, date filter |
-| Follow-Ups | `FollowUps.jsx` | Eligible follow-up visits |
-| Payments | `Payments.jsx` | Collect / record payments |
-| Refund Requests | `RefundRequests.jsx` | Raise/track refunds |
-| No-Shows | `NoShows.jsx` | Mark and review no-shows |
-| Consultation Summary | `ConsultationSummary.jsx` | Post-visit summary prep |
-| Reports / Settings | `Reports.jsx`, `Settings.jsx` | Desk reporting & preferences |
-| Shared UI | `components.jsx` | `PageWrap`, `RcHeader`, `KpiTile`, `Avatar`, `Pill`, `Spinner`, formatters |
+**Consolidated navigation** — to reduce front-desk UI load, the sidebar shows **6 grouped items** (`Dashboard · Check-In · Queue · Patients · Billing · Reports · Settings`). Each group lands on its primary page and exposes its sibling pages as a secondary tab bar (`ReceptionTabs` in `components.jsx`):
+
+| Sidebar group | Secondary tabs |
+|---------------|----------------|
+| Check-In | Online Bookings · Walk-In · QR Check-In |
+| Queue | Live Queue · No-Shows |
+| Patients | All Patients · Follow-Ups |
+| Billing | Payments · Refund Requests |
+
+All routes below remain individually addressable.
+
+| Screen | Route | File | Purpose |
+|--------|-------|------|---------|
+| Dashboard | `/reception-dashboard` | `ReceptionDashboard.jsx` | Today's KPIs — online vs walk-in split, queue snapshot |
+| Online Bookings | `/reception-online` | `OnlineBookings.jsx` | App bookings awaiting verification / token |
+| Walk-In Registration | `/reception-walkin` | `WalkInRegistration.jsx` | Multi-step offline patient registration + booking |
+| QR Check-In | `/reception-checkin` | `QRCheckIn.jsx` | Scan patient QR to mark arrival |
+| Queue Management | `/reception-queue` | `QueueManagement.jsx` | Unified per-doctor/day token queue |
+| Patients | `/reception-patients` | `Patients.jsx` | All hospital patients — type, payment, paid, cancelled, date filter |
+| Follow-Ups | `/reception-followups` | `FollowUps.jsx` | Eligible follow-up visits |
+| Payments | `/reception-payments` | `Payments.jsx` | Collect / record payments |
+| Refund Requests | `/reception-refunds` | `RefundRequests.jsx` | Raise/track refunds |
+| No-Shows | `/reception-noshows` | `NoShows.jsx` | Mark and review no-shows |
+| Consultation Summary | `/reception-summary/:appointmentId` | `ConsultationSummary.jsx` | Post-visit summary prep |
+| Reports | `/reception-reports` | `Reports.jsx` | Desk reporting |
+| Settings | `/reception-settings` | `Settings.jsx` | Desk preferences |
+| Shared UI | — | `components.jsx` | `PageWrap`, `RcHeader`, `KpiTile`, `Avatar`, `Pill`, `Spinner`, formatters |
 
 **Data isolation:** the backend derives `hospital_id` from the receptionist JWT; the panel never sends a hospital id, so a desk physically cannot read another hospital's records.
 
@@ -114,15 +126,78 @@ Both support create, enable/disable, password reset and delete, scoped appropria
 
 ---
 
-## Other Role Areas (highlights)
+## Super Admin Panel
 
-| Area | Notable pages |
-|------|---------------|
-| Super Admin | `Dashboard`, `DoctorsList`, `AllAppointments`, `ManageDeans`, `ManageAdmins`, `ManageUsers`, `HospitalTieUps`, `RevenueAnalytics`, `RefundManagement`, `ManageLabs`, `ManageBloodBanks`, `DeanPortals` |
-| Dean | `DeanDashboard`, `DeanDoctors`, `DeanAddDoctor`, `DeanAppointments`, `DeanPatients`, `DeanHospital` (banner upload), `ManageReceptionists` |
-| Doctor | `DoctorDashboard` (availability status), `DoctorAppointments`, `DoctorProfile`, `QueueManagement`, `DoctorVideoConsult` (in-call chat, symptoms + reports) |
+Platform-wide control. Sidebar uses the **admin** brand color. Context: `src/context/AdminContext.jsx`.
 
-Shared MediChain design-system components live in `src/components/mc/` (`AdminPageLayout`, `PageHero`, `KpiCard`, `FilterToolbar`, `McCard`, `StatusPill`, `LiveClock`).
+| Nav label | Route | File | What it does |
+|-----------|-------|------|--------------|
+| Dashboard | `/admin-dashboard` | `Admin/Dashboard.jsx` | Platform KPIs — hospitals, doctors, patients, appointments, revenue snapshot |
+| Revenue Hub | `/revenue-analytics` | `Admin/RevenueAnalytics.jsx` | Revenue charts & breakdowns (Chart.js), export |
+| Appointments | `/all-appointments` | `Admin/AllAppointments.jsx` | Every appointment across all hospitals, filterable |
+| Doctors List | `/doctor-list` | `Admin/DoctorsList.jsx` | All doctors, availability toggle, search |
+| Hospital Tie ups | `/hospital-tieups` | `Admin/HospitalTieUps.jsx` | Onboard/manage partner hospitals |
+| Manage Deans | `/manage-deans` | `Admin/ManageDeans.jsx` | Create/manage hospital deans (+ `DeanPortals.jsx`) |
+| Add Doctors | `/add-doctor` | `Admin/AddDoctor.jsx` | Add a doctor (shared `AddDoctorForm`) |
+| Labs | `/manage-labs` | `Admin/ManageLabs.jsx` | Diagnostic labs directory |
+| Blood Banks | `/manage-blood-banks` | `Admin/ManageBloodBanks.jsx` | Blood banks + availability |
+| Users | `/manage-users` | `Admin/ManageUsers.jsx` | Patient accounts management |
+| Reception Scan | `/reception-scan` | `Admin/ReceptionScan.jsx` | QR scan utility |
+| Receptionists | `/manage-receptionists` | `Admin/ManageReceptionists.jsx` | Global receptionist management (all hospitals) |
+| Refunds | `/refund-management` | `Admin/RefundManagement.jsx` | Approve/track refund requests |
+| Admins | `/manage-admins` | `Admin/ManageAdmins.jsx` | Manage super-admin accounts |
+| System Settings | `/system-settings` | `Admin/SystemSettings.jsx` | Platform configuration (+ `SpecialtyHelpline.jsx`) |
+
+---
+
+## Dean Panel
+
+Scoped to a **single hospital**. Sidebar uses the **dean** brand color. Context: `src/context/DeanContext.jsx`.
+
+| Nav label | Route | File | What it does |
+|-----------|-------|------|--------------|
+| Dashboard | `/dean-dashboard` | `Dean/DeanDashboard.jsx` | Hospital KPIs + hospital photo hero banner |
+| Appointments | `/dean-appointments` | `Dean/DeanAppointments.jsx` | Hospital appointments |
+| Doctors List | `/dean-doctors` | `Dean/DeanDoctors.jsx` | Redesigned directory; KPIs, search/filter, click for doctor detail modal |
+| Patients | `/dean-patients` | `Dean/DeanPatients.jsx` | Hospital patients |
+| Add Doctors | `/dean-add-doctor` | `Dean/DeanAddDoctor.jsx` | Add a doctor (shared `AddDoctorForm`) |
+| Hospital Tie ups | `/dean-hospital` | `Dean/DeanHospital.jsx` | Hospital profile + **background/banner image upload** (Cloudinary) |
+| Receptionists | `/dean-receptionists` | `Dean/ManageReceptionists.jsx` | Create/enable/disable/reset/delete receptionists for this hospital |
+
+---
+
+## Doctor Panel
+
+Clinical operations. Sidebar uses the **doctor** brand color. Context: `src/context/DoctorContext.jsx`.
+
+| Nav label | Route | File | What it does |
+|-----------|-------|------|--------------|
+| Dashboard | `/doctor-dashboard` | `Doctor/DoctorDashboard.jsx` | Today's queue + **availability status** (Available / In-clinic / Emergency / Offline) + schedule card |
+| Appointments | `/doctor-appointments` | `Doctor/DoctorAppointments.jsx` | Redesigned appointment list/detail |
+| Video Call | `/doctor-video-calls` | `Doctor/DoctorVideoCalls.jsx` | Pending/active video consults; incoming-call modal |
+| Profile | `/doctor-profile` | `Doctor/DoctorProfile.jsx` | Redesigned profile + schedule (op hours, available days) |
+| — (queue) | `/queue-management` | `Doctor/QueueManagement.jsx` | Live token queue control |
+| — (consult room) | `/doctor-video/:appointmentId` | `Doctor/DoctorVideoConsult.jsx` | Agora room with **in-call chat**, booking **symptoms** + **reports**, prescription/diagnosis/notes/advice/follow-up, correct video aspect fit |
+
+Password recovery: `/doctor-forgot-password` (`src/pages/DoctorForgotPassword.jsx`).
+
+---
+
+## Shared UI
+
+Reusable MediChain design-system components in `src/components/mc/`:
+
+| Component | Role |
+|-----------|------|
+| `AdminPageLayout` | Page shell |
+| `PageHero` | Hero banner header |
+| `KpiCard` | Metric tiles |
+| `FilterToolbar` | Search/filter bar |
+| `McCard` | Generic card |
+| `StatusPill` | Status badges |
+| `LiveClock` | Live time display |
+
+Plus app-level chrome: `Navbar.jsx`, `Sidebar.jsx` (role-aware, flattened — no dropdowns), `ScrollToTop.jsx`, `BackgroundFX.jsx`, `AnimatedQuotes.jsx`, `LiveTips.jsx`, `IncomingVideoCallModal.jsx`. Dashboard supports light/dark mode; all login/auth screens are forced light.
 
 ---
 

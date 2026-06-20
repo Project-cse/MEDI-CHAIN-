@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { ReceptionContext } from '../../context/ReceptionContext'
-import { PageWrap, RcHeader, Pill, Spinner, EmptyState, fmtMoney } from './components'
+import { PageWrap, RcHeader, Pill, Spinner, EmptyState, fmtMoney, ReceptionTabs, RECEPTION_TAB_GROUPS } from './components'
 
 const RefundRequests = () => {
   const { getRefundRequests } = useContext(ReceptionContext)
@@ -12,8 +12,9 @@ const RefundRequests = () => {
 
   return (
     <PageWrap>
-      <RcHeader title='Refund Requests' subtitle='Pending refunds for hospital appointments'
+      <RcHeader title='Billing' subtitle='Pending refunds for hospital appointments'
         right={<button onClick={load} className='px-3 py-2 rounded-xl bg-reception text-white text-sm font-semibold shadow-sm hover:bg-blue-700'>Refresh</button>} />
+      <ReceptionTabs items={RECEPTION_TAB_GROUPS.billing} />
       <div className='bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden'>
         {loading ? <Spinner /> : rows.length === 0 ? <EmptyState title='No pending refunds' /> : (
           <div className='overflow-x-auto'>

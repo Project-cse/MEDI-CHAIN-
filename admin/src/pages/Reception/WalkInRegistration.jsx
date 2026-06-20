@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { ReceptionContext } from '../../context/ReceptionContext'
-import { PageWrap, RcHeader, Avatar, fmtMoney } from './components'
+import { PageWrap, RcHeader, Avatar, fmtMoney, ReceptionTabs, RECEPTION_TAB_GROUPS } from './components'
 
 const STEPS = ['Patient Details', 'Appointment & Doctor', 'Payment', 'Token & Queue']
 
@@ -94,7 +94,8 @@ const WalkInRegistration = () => {
 
   return (
     <PageWrap>
-      <RcHeader title='Walk-In Registration' subtitle='Register a walk-in patient and add them to the queue' />
+      <RcHeader title='Check-In' subtitle='Register a walk-in patient and add them to the queue' />
+      <ReceptionTabs items={RECEPTION_TAB_GROUPS.checkin} />
 
       <div className='bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-7'>
         <StepDots step={step} />
