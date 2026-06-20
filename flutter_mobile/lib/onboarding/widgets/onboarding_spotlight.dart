@@ -247,9 +247,11 @@ class _SpotlightPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Darker scrim so a still-loading page behind the tour (spinners, skeletons)
+    // is muted and the coach-mark stays the clear focus.
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFF0B1220).withValues(alpha: 0.28),
+      Paint()..color = const Color(0xFF0B1220).withValues(alpha: 0.62),
     );
 
     final ring = RRect.fromRectAndRadius(anchor, Radius.circular(anchorRadius));

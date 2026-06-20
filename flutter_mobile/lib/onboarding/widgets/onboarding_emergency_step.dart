@@ -68,13 +68,21 @@ class _OnboardingEmergencyStepState extends ConsumerState<OnboardingEmergencySte
 
     setState(() => _saving = true);
     try {
-      await ref.read(onboardingServiceProvider).addEmergencyContact(
-            name: contact.name,
-            phone: contact.phone,
-            relation: contact.relation ?? '',
-          );
+      // 1) Save locally FIRST so the contact is never lost on a flaky network.
       await ref.read(emergencySettingsProvider.notifier).upsertPrimaryContact(contact);
+      // 2) Push to the backend, but don't let a slow/down server block onboarding.
+      try {
+        await ref
+            .read(onboardingServiceProvider)
+            .addEmergencyContact(
+              name: contact.name,
+              phone: contact.phone,
+              relation: contact.relation ?? '',
+            )
+            .timeout(const Duration(seconds: 10));
+      } catch (_) {}
       if (!mounted) return;
+      // 3) Advance — completeEmergencyContact moves forward from local truth.
       await ref.read(onboardingProvider.notifier).completeEmergencyContact();
     } catch (e) {
       if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/api_service.dart';
@@ -89,32 +91,39 @@ class OnboardingNotifier extends StateNotifier<OnboardingUiState> {
     state = state.copyWith(status: saved);
   }
 
+  OnboardingPhase _nextPhaseFrom(OnboardingStatus status) {
+    if (!status.emergencyContactCompleted) return OnboardingPhase.emergency;
+    if (!status.profileCompleted) return OnboardingPhase.profile;
+    return OnboardingPhase.complete;
+  }
+
+  /// Move to the next step using the given status as the source of truth.
+  void _applyAdvance(OnboardingStatus status) {
+    final phase = _nextPhaseFrom(status);
+    state = state.copyWith(
+      phase: phase,
+      status: status,
+      showCompletion: phase == OnboardingPhase.complete,
+    );
+    if (phase == OnboardingPhase.complete) {
+      // Persist in the background — never block the UI on it.
+      unawaited(_service.saveStatus(status).then((saved) {
+        state = state.copyWith(status: saved);
+      }).catchError((_) {}));
+    }
+  }
+
   /// After tour ends — skip steps 7/8 if data already on file.
   Future<void> _advanceAfterTour() async {
-    // Never let a flaky/slow network freeze the flow on the Emergency step:
-    // fall back to the last known status if the fetch fails.
+    // Never let a flaky/slow network freeze the flow: time out fast and fall
+    // back to the last known status.
     OnboardingStatus status;
     try {
-      status = await _service.fetchStatus();
+      status = await _service.fetchStatus().timeout(const Duration(seconds: 8));
     } catch (_) {
       status = state.status;
     }
-    if (!status.emergencyContactCompleted) {
-      state = state.copyWith(phase: OnboardingPhase.emergency, status: status);
-      return;
-    }
-    if (!status.profileCompleted) {
-      state = state.copyWith(phase: OnboardingPhase.profile, status: status);
-      return;
-    }
-    state = state.copyWith(
-      phase: OnboardingPhase.complete,
-      status: status,
-      showCompletion: true,
-    );
-    try {
-      await _persist(status);
-    } catch (_) {}
+    _applyAdvance(status);
   }
 
   Future<void> goToTourIndex(int index) async {
@@ -145,20 +154,21 @@ class OnboardingNotifier extends StateNotifier<OnboardingUiState> {
       status: next,
       tourIndex: onboardingTourSteps.length,
     );
-    try {
-      await _persist(next);
-    } catch (_) {}
+    // Persist in the background so leaving the last tour step is instant.
+    unawaited(_persist(next).catchError((_) {}));
     await _advanceAfterTour();
   }
 
   Future<void> completeEmergencyContact() async {
     final next = state.status.copyWith(emergencyContactCompleted: true);
     state = state.copyWith(status: next);
+    // Best-effort persist, but advance from LOCAL truth so a slow/failed
+    // server (or a not-yet-propagated flag) can't bounce the user back to
+    // the emergency step.
     try {
-      final saved = await _service.saveStatus(next);
-      state = state.copyWith(status: saved);
+      await _service.saveStatus(next).timeout(const Duration(seconds: 8));
     } catch (_) {}
-    await _advanceAfterTour();
+    _applyAdvance(next);
   }
 
   Future<void> completeProfile() async {
