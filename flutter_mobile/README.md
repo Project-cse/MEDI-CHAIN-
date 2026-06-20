@@ -17,6 +17,17 @@ Flutter patient app for the MEDCLUES healthcare platform. Full API parity with `
 
 ---
 
+## What's New
+
+- **Video consult chat** — patients can now text the doctor during the live video call; booking symptoms and uploaded reports surface in the doctor's consult room.
+- **Video aspect fit** — portrait phone feeds are no longer stretched on the doctor's wider screen.
+- **Tutorial / onboarding fixes** — the first-run tour no longer gets stuck on the Emergency step (network failures are handled gracefully), the background is frozen during the tour (a `ModalBarrier` blocks accidental taps), and the emergency contact entered in onboarding is reliably saved to the backend + local storage.
+- **Hospital banner** — hospital background/banner images uploaded by the Dean now display in the app's hospital list and detail screens.
+
+> The receptionist desk experience is **web-only** (in the `admin/` panel) — the mobile app remains the patient-facing client. See [admin/README.md](../admin/README.md).
+
+---
+
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)
@@ -486,6 +497,9 @@ Backend stores orders in PostgreSQL (`payment_transactions` table) — survives 
 | Token | From backend consultation endpoints |
 | Permissions | Camera + microphone via `permission_handler` |
 | Web | Agora iris script in `web/index.html` |
+| In-call chat | Patient ⇄ doctor text chat during the call (`consultation_service.dart` → `/api/user/vc/:appointmentId/messages`) |
+| Clinical context | Booking **symptoms** and uploaded **reports** are shared with the doctor's web consult room |
+| Video fit | Remote/local feeds use correct aspect fit so a phone (portrait) feed is not stretched on the doctor's laptop |
 
 ---
 

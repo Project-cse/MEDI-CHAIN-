@@ -27,6 +27,11 @@ async def doctors(info: dict = Depends(auth_reception)):
     return await reception_controller.doctors(_hid(info))
 
 
+@router.get("/profile")
+async def profile(info: dict = Depends(auth_reception)):
+    return await reception_controller.profile(info["id"])
+
+
 # ── Online bookings ─────────────────────────────────────────────────────────
 @router.get("/online-bookings")
 async def online_bookings(date: str | None = None, info: dict = Depends(auth_reception)):
@@ -89,6 +94,11 @@ async def consultation_summary(appointment_id: int, info: dict = Depends(auth_re
 
 
 # ── Patients ────────────────────────────────────────────────────────────────
+@router.get("/patients")
+async def list_patients(date: str = "", info: dict = Depends(auth_reception)):
+    return await reception_controller.list_patients(_hid(info), date or None)
+
+
 @router.get("/patients/search")
 async def patients_search(q: str = "", info: dict = Depends(auth_reception)):
     return await reception_controller.search_patients(q)

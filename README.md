@@ -2,6 +2,13 @@
 
 **MEDCLUES** (formerly MediChain+) is a full-stack healthcare management ecosystem connecting **patients**, **doctors**, **hospital receptionists**, **hospital deans**, and **super administrators**. It supports appointment booking, medical records, real-time queue tracking, Razorpay payments, Agora video consultations, AI medical chat, emergency services, labs, blood banks, front-desk reception operations, and multi-portal administration.
 
+> **Recent updates**
+> - **Booking source tracking** — appointments now carry an explicit `appointment_source` (`ONLINE` = app, `WALK_IN` = reception desk). Migration: `fastapi_back/migrations/021_appointment_source.sql`.
+> - **Unified queue tokens** — online and walk-in appointments for the same doctor/day share one continuous token sequence.
+> - **Reception Patients page** — lists every hospital patient with Type (Online/Walk-in), Payment Type, Paid/Unpaid, a Cancelled badge (sorted to the bottom), and a calendar date filter.
+> - **Receptionist panel** — hospital-scoped reception desk in `admin/`, with one receptionist per hospital managed by the Dean / Super Admin. See [admin/README.md](admin/README.md).
+> - **Mobile** — in-call chat in video consults, symptom/report sharing, onboarding-tour fixes, and hospital banner display. See [flutter_mobile/README.md](flutter_mobile/README.md).
+
 ---
 
 ## Table of Contents
@@ -469,14 +476,25 @@ See **[flutter_mobile/README.md](flutter_mobile/README.md)** for complete setup.
 | Email | `doc.arjith@medclues.com` |
 | Password | `arjith@medclues` |
 
-### Receptionist Portal (per-hospital front desk — demo account)
+### Receptionist Portal (one receptionist per hospital — hospital-scoped access)
 
-| Field | Value |
-|-------|--------|
-| Email | `reception@medclues.com` |
-| Password | `Reception@123` |
+Each hospital has its own receptionist account. A receptionist only ever sees data for their own hospital (appointments, doctors, queue, payments, follow-ups, refunds, no-shows). On the login page, select the **Receptionist** portal card.
 
-> Receptionists are created by the **Dean** (own hospital) or **Super Admin** (any hospital) from the *Manage Receptionists* page. Each receptionist is permanently scoped to one hospital and only ever sees that hospital's data. On the login page, select the **Receptionist** portal card.
+| Hospital | Email | Password |
+|----------|-------|----------|
+| NovaCare Medical Center | `receptionnovacare@medclues.com` | `receptionnovacare@medclues` |
+| Zenith Multispecialty Hospital | `receptionzenith@medclues.com` | `receptionzenith@medclues` |
+| Lifeline Advanced Hospitals | `receptionlifeline@medclues.com` | `receptionlifeline@medclues` |
+| MediCore Health Institute | `receptionmedicore@medclues.com` | `receptionmedicore@medclues` |
+| Apex Cure Hospitals | `receptionapexcure@medclues.com` | `receptionapexcure@medclues` |
+| GreenLeaf Medical Center | `receptiongreenleaf@medclues.com` | `receptiongreenleaf@medclues` |
+| HealTrust Super Speciality Hospital | `receptionhealtrust@medclues.com` | `receptionhealtrust@medclues` |
+| UrbanCare Medical Institute | `receptionurbancare@medclues.com` | `receptionurbancare@medclues` |
+| VitalEdge Hospitals | `receptionvitaledge@medclues.com` | `receptionvitaledge@medclues` |
+| EverCare Health City | `receptionevercare@medclues.com` | `receptionevercare@medclues` |
+| Aster Ramesh Hospital | `receptionasterramesh@medclues.com` | `receptionasterramesh@medclues` |
+
+> Additional receptionists for a hospital can be added by the **Dean** (own hospital) or **Super Admin** (any hospital) from the *Manage Receptionists* page — never self-signup. Each new account is permanently scoped to one hospital.
 
 ### Credential Reference Files (sensitive — do not commit publicly)
 

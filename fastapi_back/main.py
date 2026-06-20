@@ -171,6 +171,8 @@ _cors_common = {
         "atoken",
         "dtoken",
         "deantoken",
+        "rectoken",
+        "reception-token",
         "x-auth-storage",
         "x-client-platform",
     ],

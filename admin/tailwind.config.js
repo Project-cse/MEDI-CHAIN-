@@ -15,6 +15,7 @@ export default {
         'admin': '#0ea5e9',
         'dean': '#14b8a6',
         'doctor': '#6366f1',
+        'reception': '#2563eb',
         'health': '#14b8a6',
         'mc-bg': 'var(--mc-bg)',
         'mc-surface': 'var(--mc-surface)',

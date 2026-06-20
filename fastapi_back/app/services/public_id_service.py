@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 from app.config.db import db
+
+# Words ignored when deriving a hospital short-code so initials stay meaningful.
+_HOSP_CODE_STOPWORDS = {"the", "of", "and", "&"}
 
 
 async def _next_sequence(scope: str) -> int:
@@ -36,6 +40,29 @@ async def new_dean_public_id() -> str:
 
 async def new_admin_public_id() -> str:
     return f"ADM{await _next_sequence('ADM'):08d}"
+
+
+def hospital_short_code(name: str | None, hospital_id: int | None = None) -> str:
+    """Derive a stable uppercase short-code from a hospital name.
+
+    Multi-word names use the leading initials (``Guntur General Hospital`` ->
+    ``GGH``); single-word names use the first three letters (``Zenith`` ->
+    ``ZEN``). Falls back to ``H{id}`` when nothing usable is present.
+    """
+    words = [w for w in re.findall(r"[A-Za-z]+", name or "") if w.lower() not in _HOSP_CODE_STOPWORDS]
+    if len(words) >= 2:
+        return "".join(w[0] for w in words).upper()[:5]
+    if len(words) == 1:
+        return words[0][:3].upper()
+    return f"H{hospital_id or 0}"
+
+
+async def new_receptionist_public_id(hospital_id: int | None, hospital_name: str | None = None) -> str:
+    """Hospital-scoped receptionist id, e.g. ``GGH-REC01`` (sequence per hospital)."""
+    code = hospital_short_code(hospital_name, hospital_id)
+    scope = f"REC-{hospital_id}" if hospital_id else "REC-GLOBAL"
+    seq = await _next_sequence(scope)
+    return f"{code}-REC{seq:02d}"
 
 
 def _year(year: int | None) -> int:

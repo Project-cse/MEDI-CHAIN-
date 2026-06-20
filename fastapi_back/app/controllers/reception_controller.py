@@ -68,9 +68,24 @@ def _today_primary() -> str:
 
 
 def _is_online(apt: dict) -> bool:
+    """Payment semantics: does this appointment require/use online payment?"""
     mode = str(apt.get("mode") or "").lower()
     pm = str(apt.get("payment_method") or "").lower()
     return "online" in mode or "video" in mode or pm in ("razorpay", "onlinepayment", "online")
+
+
+def _appt_source(apt: dict) -> str:
+    """Booking channel: 'ONLINE' (app) vs 'WALK_IN' (reception desk).
+
+    Independent of payment method — an app booking paid at the desk is still ONLINE.
+    """
+    src = str(apt.get("appointment_source") or "").upper()
+    if src in ("ONLINE", "WALK_IN"):
+        return src
+    # Legacy rows without an explicit source: reception walk-ins used slot_time 'Walk-in'.
+    if str(apt.get("slot_time") or "").strip().lower() in ("walk-in", "walkin"):
+        return "WALK_IN"
+    return "ONLINE"
 
 
 def _is_paid(apt: dict) -> bool:
@@ -171,8 +186,14 @@ def _format(apt: dict) -> dict:
     payload["verification"] = _verification(apt)
     payload["deskStatus"] = _desk_status(apt)
     payload["receptionStatus"] = apt.get("reception_status")
-    payload["todayToken"] = apt.get("today_token")
-    payload["isOnline"] = _is_online(apt)
+    # Unified queue token (shared online + walk-in sequence per doctor/day).
+    payload["todayToken"] = apt.get("today_token") or apt.get("token_number")
+    payload["tokenNumber"] = apt.get("token_number")
+    src = _appt_source(apt)
+    payload["appointmentSource"] = src
+    payload["isOnline"] = src == "ONLINE"
+    payload["paymentMethod"] = apt.get("payment_method")
+    payload["paid"] = _is_paid(apt)
     return payload
 
 
@@ -180,8 +201,8 @@ def _format(apt: dict) -> dict:
 async def dashboard(hospital_id: Optional[int]):
     appts = await _hospital_appointments(hospital_id)
     today = [a for a in appts if _is_today(a)]
-    online = [a for a in today if _is_online(a)]
-    walkin = [a for a in today if not _is_online(a)]
+    online = [a for a in today if _appt_source(a) == "ONLINE"]
+    walkin = [a for a in today if _appt_source(a) == "WALK_IN"]
     waiting = [a for a in today if (a.get("lifecycle_status") or "").upper() == "CHECKED_IN" or a.get("reception_status") == "READY_FOR_DOCTOR"]
     no_shows = [a for a in today if (a.get("lifecycle_status") or "").upper() == "NO_SHOW"]
     followups = [a for a in appts if (a.get("lifecycle_status") or "").upper() == "FOLLOWUP_AVAILABLE"]
@@ -225,7 +246,7 @@ async def online_bookings(hospital_id: Optional[int], date: Optional[str] = None
         appts = [a for a in appts if str(a.get("slot_date")) == date]
     else:
         appts = [a for a in appts if _is_today(a)]
-    online = [a for a in appts if _is_online(a)]
+    online = [a for a in appts if _appt_source(a) == "ONLINE"]
     online.sort(key=lambda x: (x.get("today_token") or x.get("token_number") or 0))
     return {"success": True, "appointments": [_format(a) for a in online]}
 
@@ -302,23 +323,26 @@ async def mark_arrived(appointment_id: int, receptionist_id: int, hospital_id: O
     return {"success": True, "message": "Patient marked as arrived"}
 
 
-async def _next_today_token(doctor_id: int, slot_date: str) -> int:
-    row = await db.fetch_row(
-        "SELECT COALESCE(MAX(today_token), 0) AS m FROM appointments WHERE doctor_id = $1 AND slot_date = $2",
-        int(doctor_id), slot_date,
-    )
-    return int((row.get("m") if row else 0) or 0) + 1
+async def _unified_token(doctor_id: int, slot_date: str) -> int:
+    """Single continuous queue token per doctor per day, shared by ONLINE + WALK_IN.
+
+    token = MAX(token_number) for that doctor on that consultation day + 1.
+    The appointment source never affects numbering.
+    """
+    return await queue_service.assign_token_number(doctor_id, slot_date)
 
 
 async def generate_token(appointment_id: int, receptionist_id: int, hospital_id: Optional[int]):
     apt, err = await _get_scoped_appointment(appointment_id, hospital_id)
     if err:
         return err
-    token = apt.get("today_token")
+    # Reuse the booking token (already drawn from the shared per-doctor/day
+    # sequence). Only assign a fresh one if this appointment never got a token.
+    token = apt.get("token_number") or apt.get("today_token")
     if not token:
-        token = await _next_today_token(apt["doctor_id"], apt.get("slot_date"))
+        token = await _unified_token(apt["doctor_id"], apt.get("slot_date"))
     await db.execute(
-        "UPDATE appointments SET today_token = $1, reception_status = 'READY_FOR_DOCTOR' WHERE id = $2",
+        "UPDATE appointments SET token_number = $1, today_token = $1, reception_status = 'READY_FOR_DOCTOR' WHERE id = $2",
         int(token), int(appointment_id),
     )
     try:
@@ -355,6 +379,86 @@ async def search_patients(q: str):
     return {"success": True, "patients": [format_user(r) for r in rows]}
 
 
+def _slot_date_variants(iso: str) -> set[str]:
+    """Convert an ISO calendar date (YYYY-MM-DD) into the stored slot_date formats."""
+    try:
+        from app.services.doctor_slot_service import legacy_slot_date, legacy_slot_date_padded
+
+        d = datetime.strptime(str(iso)[:10], "%Y-%m-%d").date()
+        return {legacy_slot_date(d), legacy_slot_date_padded(d)}
+    except Exception:
+        return set()
+
+
+def _is_cancelled(apt: dict) -> bool:
+    return bool(apt.get("cancelled")) or str(apt.get("status") or "").lower() in ("cancelled", "canceled")
+
+
+async def list_patients(hospital_id: Optional[int], date: Optional[str] = None):
+    """Patients of THIS hospital with their latest appointment's booking channel,
+    payment and status. Type is strictly Online (app) or Walk-in (reception desk).
+    Optional `date` (ISO YYYY-MM-DD) restricts to patients with an appointment on
+    that calendar date. Cancelled patients are pushed to the bottom of the list."""
+    appts = await _hospital_appointments(hospital_id)
+
+    if date:
+        variants = _slot_date_variants(date)
+        if variants:
+            appts = [a for a in appts if str(a.get("slot_date") or "") in variants]
+
+    stats: dict[int, dict] = {}
+    for a in appts:
+        uid = a.get("user_id")
+        if not uid:
+            continue
+        s = stats.setdefault(uid, {
+            "visits": 0, "online": 0, "walkIn": 0, "lastTs": None, "lastDate": None,
+            "lastPayMethod": None, "lastPaid": False, "lastCancelled": False, "lastSource": "ONLINE",
+        })
+        s["visits"] += 1
+        if _appt_source(a) == "ONLINE":
+            s["online"] += 1
+        else:
+            s["walkIn"] += 1
+        ts = a.get("created_at")
+        if ts is not None and (s["lastTs"] is None or ts > s["lastTs"]):
+            s["lastTs"] = ts
+            s["lastDate"] = a.get("slot_date")
+            s["lastPayMethod"] = a.get("payment_method")
+            s["lastPaid"] = _is_paid(a)
+            s["lastCancelled"] = _is_cancelled(a)
+            s["lastSource"] = _appt_source(a)
+
+    if not stats:
+        return {"success": True, "patients": [], "total": 0}
+
+    ids = list(stats.keys())
+    rows = await db.query("SELECT * FROM users WHERE id = ANY($1::int[])", ids)
+    users = {r["id"]: r for r in rows}
+
+    out = []
+    for uid, s in stats.items():
+        u = users.get(uid)
+        base = format_user(u) if u else {"_id": uid, "id": uid, "name": "Unknown Patient"}
+        base["type"] = "Online" if s["lastSource"] == "ONLINE" else "Walk-in"
+        base["appointments"] = s["visits"]
+        base["visits"] = s["visits"]
+        base["onlineVisits"] = s["online"]
+        base["walkInVisits"] = s["walkIn"]
+        base["lastVisit"] = s["lastTs"].isoformat() if hasattr(s["lastTs"], "isoformat") else s["lastTs"]
+        base["lastVisitDate"] = s["lastDate"]
+        base["paymentMethod"] = s["lastPayMethod"]
+        base["paid"] = bool(s["lastPaid"])
+        base["cancelled"] = bool(s["lastCancelled"])
+        base["bookingStatus"] = "Cancelled" if s["lastCancelled"] else "Active"
+        out.append(base)
+
+    # Latest first, then push cancelled patients to the bottom (stable sort keeps date order).
+    out.sort(key=lambda x: x.get("lastVisit") or "", reverse=True)
+    out.sort(key=lambda x: 1 if x.get("cancelled") else 0)
+    return {"success": True, "patients": out, "total": len(out)}
+
+
 async def register_patient(data: dict):
     from app.controllers.user_controller import get_password_hash
 
@@ -366,13 +470,18 @@ async def register_patient(data: dict):
     else:
         email = f"walkin_{int(time.time())}@medclues.local"
     raw_pw = data.get("password") or f"Pat@{int(time.time())%100000}"
+    age_raw = data.get("age")
+    try:
+        age_val = int(str(age_raw).strip()) if age_raw not in (None, "") else None
+    except (TypeError, ValueError):
+        age_val = None
     user = await user_model.create_user({
         "name": data.get("name") or "Walk-in Patient",
         "email": email,
         "password": get_password_hash(raw_pw),
         "phone": data.get("phone") or "0000000000",
         "gender": data.get("gender") or "Not Selected",
-        "age": data.get("age"),
+        "age": age_val,
         "dob": data.get("dob") or "Not Selected",
         "bloodGroup": data.get("bloodGroup") or "",
         "address": {"line1": data.get("address") or "", "line2": ""},
@@ -420,9 +529,10 @@ async def walk_in(data: dict, receptionist_id: int, hospital_id: Optional[int]):
         "actualPatient": {"name": user.get("name"), "isSelf": True},
         "selectedSymptoms": data.get("symptoms") or [],
         "paymentMethod": payment_method,
-        "mode": "offline",
+        "mode": "In-person",
         "tokenNumber": token,
         "status": "pending",
+        "source": "WALK_IN",
     }
     new_apt = await appointment_model.create_appointment(appointment_data)
     apt_id = new_apt["id"]
@@ -439,10 +549,12 @@ async def walk_in(data: dict, receptionist_id: int, hospital_id: Optional[int]):
     except Exception:
         pass
 
-    today_token = await _next_today_token(doc["id"], slot_date)
+    # Walk-in shares the same per-doctor/day sequence as online bookings:
+    # `token` was drawn from MAX(token_number)+1 above, so reuse it as the
+    # desk token (no separate walk-in numbering).
     await db.execute(
         "UPDATE appointments SET payment = $1, today_token = $2, reception_status = 'READY_FOR_DOCTOR' WHERE id = $3",
-        collected, today_token, apt_id,
+        collected, int(token), apt_id,
     )
     try:
         await appointment_lifecycle_service.transition(
@@ -453,7 +565,7 @@ async def walk_in(data: dict, receptionist_id: int, hospital_id: Optional[int]):
         pass
 
     final = await appointment_model.get_appointment_by_id(apt_id)
-    return {"success": True, "message": f"Walk-in registered. Token #{today_token}", "token": today_token, "appointment": _format(dict(final))}
+    return {"success": True, "message": f"Walk-in registered. Token #{token}", "token": token, "appointment": _format(dict(final))}
 
 
 # ── Queue ───────────────────────────────────────────────────────────────────
@@ -507,9 +619,10 @@ async def use_followup(appointment_id: int, receptionist_id: int, hospital_id: O
         return err
     try:
         result = await followup_service.use_followup_visit(int(appointment_id), apt["user_id"])
-        token = await _next_today_token(apt["doctor_id"], _today_primary())
+        # Follow-up visit re-enters today's shared queue with the next token.
+        token = await _unified_token(apt["doctor_id"], _today_primary())
         await db.execute(
-            "UPDATE appointments SET today_token = $1, reception_status = 'READY_FOR_DOCTOR' WHERE id = $2",
+            "UPDATE appointments SET token_number = $1, today_token = $1, reception_status = 'READY_FOR_DOCTOR' WHERE id = $2",
             int(token), int(appointment_id),
         )
         return {"success": True, "message": f"Follow-up token #{token} generated", "token": token, "result": result}
@@ -642,6 +755,10 @@ async def create_receptionist(data: dict, hospital_id: Optional[int] = None):
 
 
 async def list_receptionists(hospital_id: Optional[int] = None):
+    try:
+        await receptionist_model.backfill_public_ids()
+    except Exception:
+        pass
     rows = await receptionist_model.list_by_hospital(int(hospital_id)) if hospital_id else await receptionist_model.list_all()
     out = []
     for r in rows:
@@ -649,6 +766,32 @@ async def list_receptionists(hospital_id: Optional[int] = None):
         d.pop("password", None)
         out.append(d)
     return {"success": True, "receptionists": out}
+
+
+async def profile(receptionist_id: int):
+    rec = await receptionist_model.get_by_id(int(receptionist_id))
+    if not rec:
+        return {"success": False, "message": "Receptionist not found"}
+    rec = dict(rec)
+    rec.pop("password", None)
+    hospital_name = None
+    if rec.get("hospital_id"):
+        h = await db.fetch_row("SELECT name FROM hospital_tieups WHERE id = $1", rec["hospital_id"])
+        hospital_name = h.get("name") if h else None
+    return {
+        "success": True,
+        "profile": {
+            "id": rec["id"],
+            "publicId": rec.get("public_id"),
+            "name": rec.get("name"),
+            "email": rec.get("email"),
+            "phone": rec.get("phone"),
+            "hospitalId": rec.get("hospital_id"),
+            "hospitalName": hospital_name,
+            "isActive": rec.get("is_active", True),
+            "createdAt": rec.get("created_at"),
+        },
+    }
 
 
 async def _assert_rec_scope(rec_id: int, hospital_id: Optional[int]):

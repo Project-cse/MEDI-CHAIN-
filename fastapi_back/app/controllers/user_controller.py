@@ -804,6 +804,7 @@ async def book_appointment(user_id: int, req_body: dict, prescription_file: Opti
             "status": 'pending',
             "bookingId": booking_id,
             "slotId": booked_slot_id,
+            "source": "ONLINE",
         }
 
         try:

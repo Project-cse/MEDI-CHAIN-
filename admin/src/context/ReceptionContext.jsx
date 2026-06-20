@@ -88,6 +88,14 @@ const ReceptionContextProvider = ({ children }) => {
   const getNoShows = () =>
     handle(axios.get(`${backendUrl}/api/reception/no-shows`, { headers: authHeader }));
 
+  const getPatients = (date) =>
+    handle(
+      axios.get(`${backendUrl}/api/reception/patients`, {
+        headers: authHeader,
+        params: date ? { date } : undefined,
+      })
+    );
+
   const searchPatients = (q) =>
     handle(
       axios.get(`${backendUrl}/api/reception/patients/search`, {
@@ -175,6 +183,7 @@ const ReceptionContextProvider = ({ children }) => {
     getPayments,
     getRefundRequests,
     getNoShows,
+    getPatients,
     searchPatients,
     getConsultationSummary,
     verifyAppointment,

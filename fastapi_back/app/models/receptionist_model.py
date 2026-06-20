@@ -38,8 +38,14 @@ async def list_all():
 async def create(data: Dict[str, Any]):
     from app.services import public_id_service
 
+    hospital_id = int(data["hospital_id"]) if data.get("hospital_id") is not None else None
+    hospital_name = data.get("hospital_name")
+    if hospital_id and not hospital_name:
+        h = await db.fetch_row("SELECT name FROM hospital_tieups WHERE id = $1", hospital_id)
+        hospital_name = h.get("name") if h else None
+
     try:
-        public_id = await public_id_service.new_patient_public_id()
+        public_id = await public_id_service.new_receptionist_public_id(hospital_id, hospital_name)
     except Exception:
         public_id = None
 
@@ -53,9 +59,44 @@ async def create(data: Dict[str, Any]):
         (data.get("email") or "").strip().lower(),
         data.get("password"),
         data.get("phone"),
-        int(data["hospital_id"]) if data.get("hospital_id") is not None else None,
+        hospital_id,
         public_id,
     )
+
+
+async def set_public_id(rec_id: int, public_id: str):
+    return await db.execute(
+        "UPDATE receptionists SET public_id = $1, updated_at = NOW() WHERE id = $2",
+        public_id,
+        int(rec_id),
+    )
+
+
+async def backfill_public_ids() -> int:
+    """Self-heal receptionists missing a hospital-coded public id (idempotent).
+
+    Targets NULLs and legacy non-conforming ids (e.g. old ``PAT…`` values).
+    Returns the number of rows updated.
+    """
+    from app.services import public_id_service
+
+    rows = await db.query(
+        """
+        SELECT r.id, r.hospital_id, h.name AS hospital_name
+        FROM receptionists r
+        LEFT JOIN hospital_tieups h ON h.id = r.hospital_id
+        WHERE r.public_id IS NULL OR r.public_id NOT LIKE '%-REC%'
+        """
+    )
+    updated = 0
+    for r in rows or []:
+        try:
+            pid = await public_id_service.new_receptionist_public_id(r.get("hospital_id"), r.get("hospital_name"))
+            await set_public_id(r["id"], pid)
+            updated += 1
+        except Exception:
+            continue
+    return updated
 
 
 async def update_password(rec_id: int, password_hash: str):
