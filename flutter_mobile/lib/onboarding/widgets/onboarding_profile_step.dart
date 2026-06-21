@@ -160,9 +160,9 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
   Future<void> _bootstrap() async {
     final authUser = ref.read(authProvider).user;
     try {
-      final p = await ref.read(patientProfileProvider.future);
+      final p = await ref.read(patientProfileProvider.future).timeout(const Duration(seconds: 10));
       if (!mounted) return;
-      final status = await ref.read(onboardingServiceProvider).fetchStatus();
+      final status = await ref.read(onboardingServiceProvider).fetchStatus().timeout(const Duration(seconds: 8));
       if (status.profileCompleted) {
         await ref.read(onboardingProvider.notifier).completeProfile();
         return;
@@ -275,9 +275,13 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
       decoration: _decoration('${context.l10n.authGender} *', hint: context.l10n.authGender),
       style: GoogleFonts.inter(fontSize: 14, color: PremiumHealthcareTheme.text(context)),
       borderRadius: BorderRadius.circular(12),
-      dropdownColor: Colors.white,
+      dropdownColor: PremiumHealthcareTheme.white(context),
+      iconEnabledColor: PremiumHealthcareTheme.textSecondary(context),
       items: ProfileOptions.genderItems
-          .map((e) => DropdownMenuItem(value: e.$1, child: Text(e.$2, style: GoogleFonts.inter(fontSize: 14))))
+          .map((e) => DropdownMenuItem(
+                value: e.$1,
+                child: Text(e.$2, style: GoogleFonts.inter(fontSize: 14, color: PremiumHealthcareTheme.text(context))),
+              ))
           .toList(),
       onChanged: (v) => setState(() => _gender = v),
     );
@@ -292,9 +296,13 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
       decoration: _decoration('${context.l10n.profileBloodGroup} *', hint: context.l10n.profileBloodGroup),
       style: GoogleFonts.inter(fontSize: 14, color: PremiumHealthcareTheme.text(context)),
       borderRadius: BorderRadius.circular(12),
-      dropdownColor: Colors.white,
+      dropdownColor: PremiumHealthcareTheme.white(context),
+      iconEnabledColor: PremiumHealthcareTheme.textSecondary(context),
       items: ProfileOptions.bloodGroups
-          .map((g) => DropdownMenuItem(value: g, child: Text(g, style: GoogleFonts.inter(fontSize: 14))))
+          .map((g) => DropdownMenuItem(
+                value: g,
+                child: Text(g, style: GoogleFonts.inter(fontSize: 14, color: PremiumHealthcareTheme.text(context))),
+              ))
           .toList(),
       onChanged: (v) => setState(() => _bloodGroup = v),
     );

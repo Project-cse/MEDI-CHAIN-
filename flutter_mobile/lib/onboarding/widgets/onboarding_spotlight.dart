@@ -251,7 +251,7 @@ class _SpotlightPainter extends CustomPainter {
     // is muted and the coach-mark stays the clear focus.
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFF0B1220).withValues(alpha: 0.62),
+      Paint()..color = const Color(0xFF0B1220).withValues(alpha: 0.82),
     );
 
     final ring = RRect.fromRectAndRadius(anchor, Radius.circular(anchorRadius));

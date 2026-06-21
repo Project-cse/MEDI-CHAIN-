@@ -98,6 +98,8 @@ class OnboardingNotifier extends StateNotifier<OnboardingUiState> {
   }
 
   /// Move to the next step using the given status as the source of truth.
+  /// Always advances the UI instantly and persists to the server in the
+  /// background, so a slow/cold backend can never freeze the flow.
   void _applyAdvance(OnboardingStatus status) {
     final phase = _nextPhaseFrom(status);
     state = state.copyWith(
@@ -105,25 +107,16 @@ class OnboardingNotifier extends StateNotifier<OnboardingUiState> {
       status: status,
       showCompletion: phase == OnboardingPhase.complete,
     );
-    if (phase == OnboardingPhase.complete) {
-      // Persist in the background — never block the UI on it.
-      unawaited(_service.saveStatus(status).then((saved) {
-        state = state.copyWith(status: saved);
-      }).catchError((_) {}));
-    }
+    unawaited(_service.saveStatus(status).then((saved) {
+      state = state.copyWith(status: saved);
+    }).catchError((_) {}));
   }
 
-  /// After tour ends — skip steps 7/8 if data already on file.
+  /// After tour ends — move forward immediately from local truth. The
+  /// emergency/profile steps self-skip if their data already exists on the
+  /// server, so there's no need to block here on a network round-trip.
   Future<void> _advanceAfterTour() async {
-    // Never let a flaky/slow network freeze the flow: time out fast and fall
-    // back to the last known status.
-    OnboardingStatus status;
-    try {
-      status = await _service.fetchStatus().timeout(const Duration(seconds: 8));
-    } catch (_) {
-      status = state.status;
-    }
-    _applyAdvance(status);
+    _applyAdvance(state.status);
   }
 
   Future<void> goToTourIndex(int index) async {
@@ -160,14 +153,10 @@ class OnboardingNotifier extends StateNotifier<OnboardingUiState> {
   }
 
   Future<void> completeEmergencyContact() async {
+    // The contact (and the server-side flag) is already persisted by the
+    // caller's addEmergencyContact call. Advance instantly from local truth;
+    // _applyAdvance re-persists the onboarding status in the background.
     final next = state.status.copyWith(emergencyContactCompleted: true);
-    state = state.copyWith(status: next);
-    // Best-effort persist, but advance from LOCAL truth so a slow/failed
-    // server (or a not-yet-propagated flag) can't bounce the user back to
-    // the emergency step.
-    try {
-      await _service.saveStatus(next).timeout(const Duration(seconds: 8));
-    } catch (_) {}
     _applyAdvance(next);
   }
 
@@ -178,9 +167,10 @@ class OnboardingNotifier extends StateNotifier<OnboardingUiState> {
       status: next,
       showCompletion: true,
     );
-    try {
-      await _persist(next);
-    } catch (_) {}
+    // Persist in the background so the welcome screen shows instantly.
+    unawaited(_service.saveStatus(next).then((saved) {
+      state = state.copyWith(status: saved);
+    }).catchError((_) {}));
   }
 
   Future<void> finishOnboarding() async {
