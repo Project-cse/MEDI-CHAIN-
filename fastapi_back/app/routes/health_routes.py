@@ -9,9 +9,9 @@ from app.config.db import db
 router = APIRouter(tags=["Health"])
 
 
-@router.get("/health")
+@router.api_route("/health", methods=["GET", "HEAD"])
 async def health_liveness():
-    """Liveness probe — process is up."""
+    """Liveness probe — process is up. Allows HEAD for uptime monitors."""
     return {
         "status": "ok",
         "service": "medclues-api",

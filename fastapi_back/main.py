@@ -264,8 +264,9 @@ async def integrations_config():
         "razorpay": bool(settings.RAZORPAY_KEY_ID),
     }
 
-# Root Endpoint
-@app.get("/")
+# Root Endpoint — allow HEAD too so uptime monitors (UptimeRobot sends HEAD by
+# default) get 200 instead of 405 and reliably keep the instance warm.
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     return {"message": "API Working", "version": "1.0.0", "status": "Ready"}
 

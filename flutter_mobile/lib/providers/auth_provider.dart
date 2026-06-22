@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../helpers/storage_helper.dart';
@@ -60,7 +62,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState.unauthenticated();
     } else {
       state = AuthState.authenticated(user);
-      await _afterAuth();
+      unawaited(_afterAuth());
     }
   }
 
@@ -71,7 +73,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final user = await _ref.read(authRepositoryProvider).login(email, password);
       await _ref.read(storageHelperProvider).clearPendingNewUser(user.id);
       state = AuthState.authenticated(user);
-      await _afterAuth();
+      // Register push tokens in the background — don't make the user wait on it.
+      unawaited(_afterAuth());
       return true;
     } catch (e) {
       final msg = e is AppException ? e.message : e.toString().replaceFirst('Exception: ', '');
@@ -123,7 +126,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         await storage.clearPendingNewUser(result.user.id);
       }
       state = AuthState.authenticated(result.user);
-      await _afterAuth();
+      // Register push tokens in the background — don't make the user wait on it.
+      unawaited(_afterAuth());
       return true;
     } catch (e) {
       final msg = e is AppException ? e.message : e.toString().replaceFirst('Exception: ', '');
@@ -135,8 +139,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> _afterAuth() async {
-    await PushNotificationService.instance.init();
-    await PushNotificationService.instance.syncTokenWithBackend();
+    try {
+      await PushNotificationService.instance.init();
+      await PushNotificationService.instance.syncTokenWithBackend();
+    } catch (_) {
+      // Push registration is best-effort; never let it break/delay sign-in.
+    }
   }
 
   Future<void> logout() async {

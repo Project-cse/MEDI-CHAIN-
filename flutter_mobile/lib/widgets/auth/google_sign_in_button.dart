@@ -10,11 +10,13 @@ class GoogleSignInButton extends StatelessWidget {
     required this.onPressed,
     this.loading = false,
     this.label = 'Continue with Google',
+    this.loadingLabel = 'Signing in…',
   });
 
   final VoidCallback? onPressed;
   final bool loading;
   final String label;
+  final String loadingLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -32,30 +34,31 @@ class GoogleSignInButton extends StatelessWidget {
           ),
           elevation: 0,
         ),
-        child: loading
-            ? const SizedBox(
-                width: 22,
-                height: 22,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (loading)
+              const SizedBox(
+                width: 18,
+                height: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   color: PremiumLoginTheme.textSecondary,
                 ),
               )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const _GoogleGLogo(size: 18),
-                  const SizedBox(width: 12),
-                  Text(
-                    label,
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: PremiumLoginTheme.text,
-                    ),
-                  ),
-                ],
+            else
+              const _GoogleGLogo(size: 18),
+            const SizedBox(width: 12),
+            Text(
+              loading ? loadingLabel : label,
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: loading ? PremiumLoginTheme.textSecondary : PremiumLoginTheme.text,
               ),
+            ),
+          ],
+        ),
       ),
     );
   }
