@@ -7,7 +7,19 @@ import { assets } from '../../assets/assets'
 import GlassCard from '../../components/ui/GlassCard'
 import { useSearchParams } from 'react-router-dom'
 import { formatPublicId, publicIdBadgeClass } from '../../utils/publicIdDisplay'
-import { AdminPageLayout, PageHero, KpiCard, FilterToolbar, McSearch } from '../../components/mc'
+import { AdminPageLayout, PageHero, KpiCard, FilterToolbar, McSearch, ExportMenu } from '../../components/mc'
+
+const DOCTOR_EXPORT_COLUMNS = [
+  { key: 'name', label: 'Doctor' },
+  { key: 'speciality', label: 'Specialty' },
+  { key: 'degree', label: 'Degree' },
+  { key: 'experience', label: 'Experience' },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'hospital_name', label: 'Hospital' },
+  { key: 'fees', label: 'Fees', format: (v) => (v ? `₹${v}` : '') },
+  { key: 'available', label: 'Availability', format: (v) => (v ? 'Available' : 'Unavailable') },
+]
 
 const DoctorsList = () => {
 
@@ -175,7 +187,17 @@ const DoctorsList = () => {
             />
           </div>
 
-          <FilterToolbar>
+          <FilterToolbar
+            actions={
+              <ExportMenu
+                columns={DOCTOR_EXPORT_COLUMNS}
+                rows={() => filteredDoctors}
+                filename='doctors_list'
+                title='Doctors Directory'
+                subtitle={`${filteredDoctors.length} record(s)`}
+              />
+            }
+          >
             <McSearch
               placeholder="Search by name, specialty or qualification..."
               value={searchTerm}

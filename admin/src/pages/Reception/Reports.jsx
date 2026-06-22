@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { ReceptionContext } from '../../context/ReceptionContext'
 import { PageWrap, RcHeader, KpiTile, Spinner, fmtMoney } from './components'
+import { ExportMenu } from '../../components/mc'
 
 const Icon = ({ d }) => (<svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={1.8} d={d} /></svg>)
 
@@ -11,9 +12,29 @@ const Reports = () => {
 
   useEffect(() => { (async () => { const r = await getDashboard(); if (r?.success) setS(r.stats); setLoading(false) })() }, [])
 
+  const summaryRows = () => ([
+    { metric: 'Online Patients', value: s?.onlineToday ?? 0 },
+    { metric: 'Walk-in Patients', value: s?.walkInToday ?? 0 },
+    { metric: 'No Shows', value: s?.noShows ?? 0 },
+    { metric: 'Follow-Ups', value: s?.followUps ?? 0 },
+    { metric: 'Waiting Queue', value: s?.waitingQueue ?? 0 },
+    { metric: 'Pending Refunds', value: s?.pendingRefunds ?? 0 },
+    { metric: 'Revenue Today', value: fmtMoney(s?.revenueToday) },
+  ])
+
   return (
     <PageWrap>
-      <RcHeader title='Reports' subtitle="Today's front-desk activity overview" />
+      <RcHeader title='Reports' subtitle="Today's front-desk activity overview"
+        right={
+          <ExportMenu
+            columns={[{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }]}
+            rows={summaryRows}
+            filename='reception_daily_report'
+            title='Reception · Daily Report'
+            subtitle={new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            orientation='portrait'
+          />
+        } />
       {loading ? <Spinner /> : (
         <>
           <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>

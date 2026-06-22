@@ -220,6 +220,25 @@ def otp_verification(otp: str, purpose: str = "account verification") -> str:
     return wrap_email(content)
 
 
+def password_reset(otp: str, name: str = "there") -> str:
+    content = f"""
+    {_icon_circle("&#128273;", BRAND_BLUE, "#EFF6FF")}
+    {_heading("Reset Your Password")}
+    {_greeting(name)}
+    {_body_text("We received a request to reset the password for your MEDCLUES account. Enter the verification code below to set a new password.")}
+    {_otp_boxes(otp)}
+    <p style="margin:0;text-align:center;font-size:13px;color:{TEXT_MUTED};">
+      &#9201; This code is valid for <strong>10 minutes</strong>
+    </p>
+    {_note_box(
+        "<strong>Didn't request this?</strong> You can safely ignore this email — your password will stay the same. "
+        "For your security, never share this code with anyone.",
+        "#FFFBEB", BRAND_AMBER
+    )}
+    """
+    return wrap_email(content)
+
+
 def appointment_confirmed(details: dict, view_url: str) -> str:
     patient = details.get("patientName", "Patient")
     hospital_name = details.get("hospitalName", "MEDCLUES Partner Hospital")

@@ -4,7 +4,17 @@ import { AdminContext } from '../../context/AdminContext'
 import GlassCard from '../../components/ui/GlassCard'
 import { toast } from 'react-toastify'
 import { formatPublicId, publicIdBadgeClass } from '../../utils/publicIdDisplay'
-import { AdminPageLayout, PageHero, KpiCard, FilterToolbar, McSearch } from '../../components/mc'
+import { AdminPageLayout, PageHero, KpiCard, FilterToolbar, McSearch, ExportMenu } from '../../components/mc'
+
+const USER_EXPORT_COLUMNS = [
+    { key: 'name', label: 'Name' },
+    { key: (u) => u.publicId || u.id || u._id, label: 'Patient ID' },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+    { key: 'gender', label: 'Gender' },
+    { key: 'trustScore', label: 'Trust Score' },
+    { key: (u) => u.date || u.created_at, label: 'Joined', format: (v) => (v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '') },
+]
 
 const ManageUsers = () => {
     const { aToken } = useContext(AdminContext)
@@ -70,7 +80,18 @@ const ManageUsers = () => {
                     />
                 </div>
 
-                <FilterToolbar>
+                <FilterToolbar
+                    actions={
+                        <ExportMenu
+                            columns={USER_EXPORT_COLUMNS}
+                            rows={() => filtered}
+                            filename='platform_users'
+                            title='Platform Users'
+                            subtitle={`${filtered.length} record(s)`}
+                            orientation='portrait'
+                        />
+                    }
+                >
                     <McSearch placeholder="Search users by name, email or ID..." value={search} onChange={(e) => setSearch(e.target.value)} />
                 </FilterToolbar>
 

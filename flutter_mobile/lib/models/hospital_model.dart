@@ -58,7 +58,7 @@ class HospitalModel {
       id: '${json['id'] ?? json['_id'] ?? ''}',
       name: '${json['name'] ?? json['hospitalName'] ?? 'Hospital'}',
       address: '${json['address'] ?? json['location'] ?? ''}',
-      imageUrl: (json['image'] ?? json['profile_pic_url'])?.toString(),
+      imageUrl: (json['image'] ?? json['profile_pic_url'] ?? json['backgroundImage'] ?? json['background_image'])?.toString(),
       backgroundImage: (json['backgroundImage'] ?? json['background_image'])?.toString(),
       rating: (json['rating'] is num) ? (json['rating'] as num).toDouble() : null,
       specialization: json['specialization']?.toString(),

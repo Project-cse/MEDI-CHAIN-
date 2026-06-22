@@ -474,6 +474,70 @@ async def save_consultation_for_doctor(
     )
 
 
+async def get_consultation_for_doctor(doctor_id: int, appointment_id: int):
+    """Return the current clinical notes/prescription for a doctor's appointment (for editing)."""
+    appointment = await appointment_model.get_appointment_by_id(int(appointment_id))
+    if not appointment or appointment['doctor_id'] != doctor_id:
+        return {'success': False, 'message': 'Appointment not found'}
+    consultation = await consultation_model.get_consultation_by_appointment_id(int(appointment_id))
+    c = consultation or {}
+    followup = c.get('followup_date')
+    return {
+        'success': True,
+        'consultation': {
+            'prescription': c.get('prescription') or '',
+            'notes': c.get('notes') or '',
+            'diagnosis': c.get('diagnosis') or '',
+            'advice': c.get('advice') or '',
+            'followupDate': followup.isoformat() if hasattr(followup, 'isoformat') else (followup or ''),
+        },
+    }
+
+
+async def publish_prescription_for_doctor(
+    doctor_id: int, appointment_id: int, req_body: dict | None = None
+):
+    """Save the prescription and send the patient a real-time notification."""
+    from app.controllers import lifecycle_controller
+    import asyncio
+
+    appointment = await appointment_model.get_appointment_by_id(int(appointment_id))
+    if not appointment or appointment['doctor_id'] != doctor_id:
+        return {'success': False, 'message': 'Appointment not found'}
+
+    # Was there already a prescription? Used to word the notification.
+    existing = await consultation_model.get_consultation_by_appointment_id(int(appointment_id))
+    had_prescription = bool((existing or {}).get('prescription'))
+
+    result = await lifecycle_controller.save_consultation_draft(
+        doctor_id,
+        int(appointment_id),
+        req_body or {},
+    )
+    if not result.get('success'):
+        return result
+
+    # Notify the patient in real time (FCM push) — non-blocking.
+    try:
+        doc = await doctor_model.get_doctor_by_id(doctor_id)
+        doc_name = (doc.get('name') if doc else None) or 'your doctor'
+        doc_name = doc_name.replace('Dr. ', '').replace('Dr.', '').strip() or 'your doctor'
+        from app.services import fcm_service
+        asyncio.create_task(
+            fcm_service.notify_prescription_ready(
+                int(appointment['user_id']),
+                doc_name,
+                int(appointment_id),
+                updated=had_prescription,
+            )
+        )
+    except Exception as notify_err:
+        print(f"[WARNING] prescription notify failed: {notify_err}")
+
+    result['message'] = 'Prescription updated and patient notified' if had_prescription else 'Prescription sent to patient'
+    return result
+
+
 async def get_video_call_status_for_user(user_id: int, appointment_id: int):
     appointment = await appointment_model.get_appointment_by_id(int(appointment_id))
     if not appointment or appointment['user_id'] != user_id:

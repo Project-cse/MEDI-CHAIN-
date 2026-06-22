@@ -81,8 +81,8 @@ async def send_email(to: str, subject: str, html_content: str, recipient_name: s
 
 
 async def send_password_reset_otp(email: str, otp: str, user_name: str):
-    subject = "Your OTP for Verification — MEDCLUES"
-    html_content = tpl.otp_verification(otp, purpose="password reset")
+    subject = "Reset your password — MEDCLUES"
+    html_content = tpl.password_reset(otp, user_name or "there")
     return await send_email(email, subject, html_content, user_name)
 
 

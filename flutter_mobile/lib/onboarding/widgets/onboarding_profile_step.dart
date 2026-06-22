@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -128,40 +130,40 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
 
     setState(() => _saving = true);
 
-    PatientModel profile;
-    try {
-      profile = await ref.read(patientProfileProvider.future);
-    } catch (_) {
-      final user = ref.read(authProvider).user;
-      profile = PatientModel(
-        id: user?.id ?? '',
-        name: _name.text.trim(),
-        email: user?.email ?? _email.text,
-        phone: _phone.text.trim(),
-      );
-    }
+    // Build the profile from whatever we already have in memory — NEVER block on
+    // a network fetch here, or a cold backend would freeze "Complete Setup".
+    final user = ref.read(authProvider).user;
+    final base = ref.read(patientProfileProvider).valueOrNull ??
+        PatientModel(
+          id: user?.id ?? '',
+          name: _name.text.trim(),
+          email: user?.email ?? _email.text,
+          phone: _phone.text.trim(),
+        );
 
-    final updated = profile.copyWith(
+    final updated = base.copyWith(
       name: _name.text.trim(),
       phone: _phone.text.trim(),
       gender: _gender,
       bloodGroup: _bloodGroup,
       dob: DateFormat('yyyy-MM-dd').format(_dob!),
-      address: _address.text.trim().isEmpty ? profile.address : _address.text.trim(),
+      address: _address.text.trim().isEmpty ? base.address : _address.text.trim(),
     );
 
-    // Advance to welcome screen immediately.
+    // Advance to the welcome screen immediately, then sync to the server in the
+    // background so the UI is never held hostage by a slow request.
     await ref.read(onboardingProvider.notifier).completeProfile();
 
-    try {
-      await ref.read(onboardingServiceProvider).updateProfile(updated);
-      ref.invalidate(patientProfileProvider);
-    } catch (e) {
-      // Profile saved on server may fail; user still continues — log for support.
-      debugPrint('Onboarding profile sync: $e');
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+    unawaited(
+      ref.read(onboardingServiceProvider).updateProfile(updated).then((_) {
+        ref.invalidate(patientProfileProvider);
+      }).catchError((e) {
+        // Server sync can be retried later; the user still continues.
+        debugPrint('Onboarding profile sync: $e');
+      }),
+    );
+
+    if (mounted) setState(() => _saving = false);
   }
 
   @override

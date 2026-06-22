@@ -25,10 +25,8 @@ import ManageAdmins from './pages/Admin/ManageAdmins';
 import SystemSettings from './pages/Admin/SystemSettings';
 import AllAppointments from './pages/Admin/AllAppointments';
 import DoctorsList from './pages/Admin/DoctorsList';
-import AddDoctor from './pages/Admin/AddDoctor';
 import RevenueAnalytics from './pages/Admin/RevenueAnalytics';
 import RefundManagement from './pages/Admin/RefundManagement';
-import ReceptionScan from './pages/Admin/ReceptionScan';
 import DeanPortals from './pages/Admin/DeanPortals';
 import AdminManageReceptionists from './pages/Admin/ManageReceptionists';
 
@@ -125,9 +123,7 @@ const App = () => {
             <Route path='/system-settings' element={<SystemSettings />} />
             <Route path='/all-appointments' element={<AllAppointments />} />
             <Route path='/doctor-list' element={<DoctorsList />} />
-            <Route path='/add-doctor' element={<AddDoctor />} />
             <Route path='/revenue-analytics' element={<RevenueAnalytics />} />
-            <Route path='/reception-scan' element={<ReceptionScan />} />
             <Route path='/manage-receptionists' element={<AdminManageReceptionists />} />
             <Route path='/refund-management' element={<RefundManagement />} />
 

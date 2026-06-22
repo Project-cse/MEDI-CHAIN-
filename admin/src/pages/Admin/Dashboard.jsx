@@ -11,7 +11,6 @@ import BarChart from '../../components/charts/BarChart'
 import { AdminPageLayout, PageHero, KpiCard, McCard } from '../../components/mc'
 
 const QUICK_ACTIONS = [
-  { label: 'Add New Doctor', path: '/add-doctor', bg: 'bg-teal-500' },
   { label: 'Schedule Appointment', path: '/all-appointments', bg: 'bg-sky-500' },
   { label: 'Add New Dean', path: '/manage-deans', bg: 'bg-violet-500' },
   { label: 'Add New Hospital', path: '/hospital-tieups', bg: 'bg-blue-500' },

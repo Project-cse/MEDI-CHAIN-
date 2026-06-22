@@ -6,7 +6,7 @@ import { DoctorContext } from '../../context/DoctorContext'
 import { AppContext } from '../../context/AppContext'
 import AppointmentDetailModal from '../../components/AppointmentDetailModal'
 import CompleteConsultationModal from '../../components/CompleteConsultationModal'
-import { AdminPageLayout, KpiCard, McCard } from '../../components/mc'
+import { AdminPageLayout, KpiCard, McCard, ExportMenu } from '../../components/mc'
 
 const PAGE_SIZE = 8
 
@@ -51,7 +51,6 @@ const DoctorAppointments = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const [viewMode, setViewMode] = useState('list')
   const [page, setPage] = useState(1)
-  const [openMenuId, setOpenMenuId] = useState(null)
 
   const validTabs = ['all', 'upcoming', 'completed', 'cancelled', 'today']
   const [activeTab, setActiveTab] = useState(() => {
@@ -119,6 +118,19 @@ const DoctorAppointments = () => {
     { id: 'cancelled', label: 'Cancelled' },
   ]
 
+  const appointmentExportColumns = [
+    { key: (a) => getPatientName(a), label: 'Patient' },
+    { key: (a) => getPatientAge(a, calculateAge), label: 'Age' },
+    { key: (a) => slotDateFormat(a.slotDate), label: 'Date' },
+    { key: (a) => a.slotTime, label: 'Time' },
+    { key: (a) => (isOnlineVideoAppointment(a) ? 'Video Call' : 'In Clinic'), label: 'Type' },
+    { key: (a) => getReason(a), label: 'Reason' },
+    { key: (a) => a.amount, label: 'Fee', format: (v) => `${currency}${v ?? ''}` },
+    { key: (a) => (a.payment ? 'Paid' : 'Pending'), label: 'Payment' },
+    { key: (a) => (a.cancelled ? 'Cancelled' : a.isCompleted ? 'Completed' : 'Upcoming'), label: 'Status' },
+    { key: (a) => a.bookingId, label: 'Booking ID' },
+  ]
+
   const StatusPill = ({ item }) => {
     if (item.cancelled) return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600"><span className="w-1.5 h-1.5 rounded-full bg-rose-500" />Cancelled</span>
     if (item.isCompleted) return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Completed</span>
@@ -147,14 +159,23 @@ const DoctorAppointments = () => {
           <h1 className="text-2xl font-bold text-mc-text">Appointments</h1>
           <p className="text-sm text-mc-text-muted mt-0.5">Manage and view all your patient appointments</p>
         </div>
-        <button
-          onClick={() => setViewMode(viewMode === 'list' ? 'calendar' : 'list')}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-sm"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={viewMode === 'list' ? 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' : 'M4 6h16M4 10h16M4 14h16M4 18h16'} />
-          </svg>
-          {viewMode === 'list' ? 'Calendar View' : 'List View'}
-        </button>
+        <div className="flex items-center gap-2">
+          <ExportMenu
+            columns={appointmentExportColumns}
+            rows={() => filteredAppointments}
+            filename='my_appointments'
+            title='Doctor Appointments'
+            subtitle={`${filteredAppointments.length} record(s)`}
+          />
+          <button
+            onClick={() => setViewMode(viewMode === 'list' ? 'calendar' : 'list')}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={viewMode === 'list' ? 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' : 'M4 6h16M4 10h16M4 14h16M4 18h16'} />
+            </svg>
+            {viewMode === 'list' ? 'Calendar View' : 'List View'}
+          </button>
+        </div>
       </div>
 
       {/* KPI cards */}
@@ -308,62 +329,42 @@ const DoctorAppointments = () => {
                           <td className="px-3 py-3 text-slate-600 max-w-[220px] truncate" title={getReason(item)}>{getReason(item)}</td>
                           <td className="px-3 py-3"><StatusPill item={item} /></td>
                           <td className="px-3 py-3">
-                            <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {video && actionable && (
+                                <button
+                                  onClick={() => navigate(`/doctor-video/${item._id}`)}
+                                  title="Join video call"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-colors"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                  Join
+                                </button>
+                              )}
                               <button
                                 onClick={() => setSelectedAppointment(item)}
-                                className="px-3.5 py-1.5 rounded-lg border border-mc-border text-slate-700 text-xs font-semibold hover:bg-slate-50"
+                                title="View details"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-mc-border text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors"
                               >
                                 View
                               </button>
-                              <div className="relative">
+                              {actionable && (
                                 <button
-                                  onClick={() => setOpenMenuId(openMenuId === item._id ? null : item._id)}
-                                  className="w-8 h-8 rounded-lg border border-mc-border text-slate-500 hover:bg-slate-50 flex items-center justify-center"
+                                  onClick={() => setCompleteTarget(item)}
+                                  title="Mark as complete"
+                                  className="w-8 h-8 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 flex items-center justify-center transition-colors"
                                 >
-                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4z" /></svg>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                                 </button>
-                                {openMenuId === item._id && (
-                                  <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
-                                    <div className="absolute right-0 top-9 z-20 w-44 bg-white rounded-xl shadow-2xl border border-slate-100 py-1.5">
-                                      {video && actionable && (
-                                        <button
-                                          onClick={() => { setOpenMenuId(null); navigate(`/doctor-video/${item._id}`) }}
-                                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-sky-700 hover:bg-sky-50"
-                                        >
-                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                                          Join Video Call
-                                        </button>
-                                      )}
-                                      <button
-                                        onClick={() => { setOpenMenuId(null); setSelectedAppointment(item) }}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50"
-                                      >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                        View Details
-                                      </button>
-                                      {actionable && (
-                                        <button
-                                          onClick={() => { setOpenMenuId(null); setCompleteTarget(item) }}
-                                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-emerald-700 hover:bg-emerald-50"
-                                        >
-                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                          Mark Complete
-                                        </button>
-                                      )}
-                                      {actionable && (
-                                        <button
-                                          onClick={() => { setOpenMenuId(null); cancelAppointment(item._id) }}
-                                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-700 hover:bg-rose-50"
-                                        >
-                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                          Cancel
-                                        </button>
-                                      )}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
+                              )}
+                              {actionable && (
+                                <button
+                                  onClick={() => cancelAppointment(item._id)}
+                                  title="Cancel appointment"
+                                  className="w-8 h-8 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

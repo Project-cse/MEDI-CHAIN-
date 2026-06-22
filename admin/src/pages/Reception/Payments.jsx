@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { ReceptionContext } from '../../context/ReceptionContext'
 import { PageWrap, RcHeader, Pill, Spinner, Avatar, EmptyState, fmtMoney, patientName, doctorName, ReceptionTabs, RECEPTION_TAB_GROUPS } from './components'
+import { ExportMenu } from '../../components/mc'
 
 const Payments = () => {
   const { getPayments, collectPayment, requestRefund } = useContext(ReceptionContext)
@@ -16,10 +17,31 @@ const Payments = () => {
 
   const collected = rows.filter((r) => r.verification?.paymentOk).reduce((s, r) => s + Number(r.amount || 0), 0)
 
+  const exportColumns = [
+    { key: (a) => a.bookingId || `#${a._id}`, label: 'Booking' },
+    { key: (a) => patientName(a), label: 'Patient' },
+    { key: (a) => doctorName(a), label: 'Doctor' },
+    { key: (a) => a.amount, label: 'Amount', format: (v) => fmtMoney(v) },
+    { key: 'paymentMethod', label: 'Method' },
+    { key: (a) => (a.verification?.paymentOk ? 'Paid' : 'Unpaid'), label: 'Status' },
+  ]
+
   return (
     <PageWrap>
       <RcHeader title='Billing' subtitle="Today's payment collection"
-        right={<span className='px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold'>Collected: {fmtMoney(collected)}</span>} />
+        right={
+          <div className='flex items-center gap-2'>
+            <span className='px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold'>Collected: {fmtMoney(collected)}</span>
+            <ExportMenu
+              columns={exportColumns}
+              rows={() => rows}
+              filename='reception_billing'
+              title='Reception · Billing'
+              subtitle={`Collected ${fmtMoney(collected)} · ${rows.length} record(s)`}
+              orientation='portrait'
+            />
+          </div>
+        } />
       <ReceptionTabs items={RECEPTION_TAB_GROUPS.billing} />
       <div className='bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden'>
         {loading ? <Spinner /> : rows.length === 0 ? <EmptyState title='No payments today' /> : (

@@ -80,5 +80,14 @@ def doctor_profile_folder(
     return f"{ROOT}/doctors/{doctor_segment(doctor, doctor_id=doctor_id, public_id=public_id)}/profile"
 
 
+def doctor_documents_folder(
+    doctor: Optional[Mapping[str, Any]] = None,
+    *,
+    doctor_id: Optional[int] = None,
+    public_id: Optional[str] = None,
+) -> str:
+    return f"{ROOT}/doctors/{doctor_segment(doctor, doctor_id=doctor_id, public_id=public_id)}/documents"
+
+
 def job_applications_folder() -> str:
     return f"{ROOT}/job-applications"

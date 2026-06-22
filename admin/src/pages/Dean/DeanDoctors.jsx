@@ -11,6 +11,7 @@ import {
     McSearch,
     McSelect,
     McButton,
+    ExportMenu,
 } from '../../components/mc'
 
 const DOCTOR_STATUSES = [
@@ -240,6 +241,22 @@ const DeanDoctors = () => {
         setAvailFilter('all')
     }
 
+    const doctorExportColumns = [
+        { key: 'name', label: 'Doctor' },
+        { key: 'speciality', label: 'Specialty' },
+        { key: (d) => departmentOf(d), label: 'Department' },
+        { key: 'degree', label: 'Degree' },
+        { key: 'experience', label: 'Experience' },
+        { key: 'fees', label: 'Consultation Fee', format: (v) => (v ? `₹${v}` : '') },
+        { key: 'videoConsultationFee', label: 'Video Fee', format: (v) => (v ? `₹${v}` : '') },
+        { key: 'email', label: 'Email' },
+        { key: 'phone', label: 'Phone' },
+        { key: (d) => statusMeta(d).label, label: 'Availability' },
+        { key: 'rating', label: 'Rating' },
+        { key: 'reviews', label: 'Reviews' },
+        { key: 'publicId', label: 'Doctor ID' },
+    ]
+
     return (
         <AdminPageLayout>
             <PageHero
@@ -280,9 +297,18 @@ const DeanDoctors = () => {
 
             <FilterToolbar
                 actions={
-                    <McButton variant="primary" onClick={() => navigate('/dean-add-doctor')}>
-                        + Add Doctor
-                    </McButton>
+                    <div className="flex items-center gap-2">
+                        <ExportMenu
+                            columns={doctorExportColumns}
+                            rows={() => filtered}
+                            filename='hospital_doctors'
+                            title='Hospital Doctors'
+                            subtitle={`${filtered.length} record(s)`}
+                        />
+                        <McButton variant="primary" onClick={() => navigate('/dean-add-doctor')}>
+                            + Add Doctor
+                        </McButton>
+                    </div>
                 }
             >
                 <McSearch

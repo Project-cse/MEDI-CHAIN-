@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react'
 import { DeanContext } from '../../context/DeanContext'
 import { AppContext } from '../../context/AppContext'
 import GlassCard from '../../components/ui/GlassCard'
+import { ExportMenu } from '../../components/mc'
 import { toast } from 'react-toastify'
 
 const statusBadge = (item) => {
@@ -9,6 +10,17 @@ const statusBadge = (item) => {
   if (item.isCompleted) return <span className='px-2.5 py-1 rounded-full bg-green-50 text-green-600 text-[11px] font-bold border border-green-100'>Completed</span>
   return <span className='px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold border border-blue-100'>Active</span>
 }
+
+const apptPatientName = (a) => (a.actualPatient && !a.actualPatient.isSelf ? a.actualPatient.name : a.userData?.name) || '—'
+const apptPatientPhone = (a) => (a.actualPatient && !a.actualPatient.isSelf ? a.actualPatient.phone : a.userData?.phone) || ''
+const apptIsOnline = (a) => ['online', 'video'].includes(String(a.mode || '').toLowerCase())
+const apptPayLabel = (a) => {
+  const m = (a.paymentMethod || '').toLowerCase()
+  return a.payment
+    ? (m.includes('razor') || m.includes('online') ? 'Online Paid' : 'Paid')
+    : (m.includes('visit') || m.includes('cash') ? 'Pay at Visit' : 'Pending')
+}
+const apptState = (a) => (a.cancelled ? 'Cancelled' : a.isCompleted ? 'Completed' : 'Active')
 
 const DeanAppointments = () => {
   const { deanToken, appointments, getAllAppointments, cancelAppointment } = useContext(DeanContext)
@@ -27,17 +39,14 @@ const DeanAppointments = () => {
     if (deanToken) getAllAppointments()
   }, [deanToken])
 
-    // Extract unique doctors for filter dropdown
+    // Extract unique doctors for filter dropdown (keyed by reliable docId)
     useEffect(() => {
         if (appointments.length > 0) {
             const doctorMap = new Map()
             appointments.forEach(apt => {
-                const doc = apt.docData
-                if (doc) {
-                    const id = doc._id || doc.id
-                    if (id && !doctorMap.has(id)) {
-                        doctorMap.set(id, {...doc, _id: id})
-                    }
+                const id = apt.docId ?? apt.docData?._id ?? apt.docData?.id
+                if (id != null && !doctorMap.has(String(id))) {
+                    doctorMap.set(String(id), { id: String(id), name: apt.docData?.name || `Doctor #${id}` })
                 }
             })
             setDoctors(Array.from(doctorMap.values()))
@@ -80,9 +89,9 @@ const DeanAppointments = () => {
             if (a.slotDate !== fStd && a.slotDate !== fLeg) return false
         }
 
-        // Doctor Narrowing (Handles both _id and id formats)
+        // Doctor Narrowing (uses reliable docId, falls back to snapshot ids)
         if (filters.doctor) {
-            const docId = a.docData?._id || a.docData?.id
+            const docId = a.docId ?? a.docData?._id ?? a.docData?.id
             if (String(docId) !== String(filters.doctor)) return false
         }
 
@@ -95,6 +104,21 @@ const DeanAppointments = () => {
 
         return true
     })
+
+  const exportColumns = [
+    { key: (a) => a.docData?.name, label: 'Doctor' },
+    { key: (a) => a.docData?.speciality, label: 'Speciality' },
+    { key: apptPatientName, label: 'Patient' },
+    { key: apptPatientPhone, label: 'Phone' },
+    { key: (a) => a.bookingId, label: 'Booking ID' },
+    { key: (a) => slotDateFormat(a.slotDate), label: 'Date' },
+    { key: (a) => a.slotTime, label: 'Time' },
+    { key: (a) => (apptIsOnline(a) ? 'Online' : 'In-clinic'), label: 'Type' },
+    { key: (a) => a.tokenNumber, label: 'Token' },
+    { key: (a) => a.amount, label: 'Amount', format: (v) => `${currency}${v ?? ''}` },
+    { key: apptPayLabel, label: 'Payment' },
+    { key: apptState, label: 'Status' },
+  ]
 
   return (
     <div className='w-full bg-white p-4 sm:p-6 mobile-safe-area pb-6'>
@@ -124,6 +148,13 @@ const DeanAppointments = () => {
                   {tab.label}
                 </button>
               ))}
+              <ExportMenu
+                columns={exportColumns}
+                rows={() => filteredAppointments}
+                filename='hospital_appointments'
+                title='Hospital Appointments'
+                subtitle={`${filteredAppointments.length} record(s)`}
+              />
             </div>
           </div>
         </GlassCard>
@@ -162,7 +193,7 @@ const DeanAppointments = () => {
                         >
                             <option value="">All Hospital Doctors</option>
                             {doctors.map(d => (
-                                <option key={d._id} value={d._id}>{d.name}</option>
+                                <option key={d.id} value={d.id}>{d.name}</option>
                             ))}
                         </select>
                     </div>
@@ -184,14 +215,18 @@ const DeanAppointments = () => {
         </GlassCard>
 
         {/* List */}
+        <div className='flex items-center justify-between px-1'>
+            <p className='text-xs text-gray-400 font-medium'>{filteredAppointments.length} appointment{filteredAppointments.length === 1 ? '' : 's'}</p>
+        </div>
         <div className='overflow-x-auto rounded-3xl border border-gray-100 shadow-sm'>
-            <table className='w-full text-sm text-left'>
+            <table className='w-full text-sm text-left min-w-[1040px]'>
                 <thead className='bg-gray-50/50 text-gray-500 uppercase text-[10px] font-black tracking-widest'>
                     <tr>
                         <th className='px-6 py-4'>#</th>
                         <th className='px-6 py-4'>Doctor Info</th>
                         <th className='px-6 py-4'>Patient</th>
                         <th className='px-6 py-4'>Schedule</th>
+                        <th className='px-6 py-4'>Type</th>
                         <th className='px-6 py-4'>Payment</th>
                         <th className='px-6 py-4 text-center'>State</th>
                         <th className='px-6 py-4 text-right'>Actions</th>
@@ -199,11 +234,17 @@ const DeanAppointments = () => {
                 </thead>
                 <tbody className='divide-y divide-gray-50'>
                     {filteredAppointments.length === 0 ? (
-                        <tr><td colSpan={7} className='text-center py-20 text-gray-400 font-medium'>No appointments match your criteria.</td></tr>
+                        <tr><td colSpan={8} className='text-center py-20 text-gray-400 font-medium'>No appointments match your criteria.</td></tr>
                     ) : filteredAppointments.map((item, idx) => {
-                        const patientName = item.actualPatient && !item.actualPatient.isSelf ? item.actualPatient.name : item.userData?.name
+                        const patientName = (item.actualPatient && !item.actualPatient.isSelf ? item.actualPatient.name : item.userData?.name) || '—'
+                        const patientPhone = (item.actualPatient && !item.actualPatient.isSelf ? item.actualPatient.phone : item.userData?.phone) || ''
+                        const isOnline = String(item.mode || '').toLowerCase() === 'online' || String(item.mode || '').toLowerCase() === 'video'
+                        const payMethod = (item.paymentMethod || '').toLowerCase()
+                        const payLabel = item.payment
+                            ? (payMethod.includes('razor') || payMethod.includes('online') ? 'Online Paid' : 'Paid')
+                            : (payMethod.includes('visit') || payMethod.includes('cash') ? 'Pay at Visit' : 'Pending')
                         return (
-                            <tr key={idx} className='bg-white hover:bg-emerald-50/30 transition-colors'>
+                            <tr key={item._id || idx} className='bg-white hover:bg-emerald-50/30 transition-colors'>
                                 <td className='px-6 py-4 font-mono text-gray-300 text-xs'>{idx + 1}</td>
                                 <td className='px-6 py-4'>
                                     <div className='flex items-center gap-3'>
@@ -214,15 +255,25 @@ const DeanAppointments = () => {
                                         </div>
                                     </div>
                                 </td>
-                                <td className='px-6 py-4 font-bold text-gray-800'>{patientName}</td>
+                                <td className='px-6 py-4'>
+                                    <p className='font-bold text-gray-800'>{patientName}</p>
+                                    {patientPhone && <p className='text-[10px] text-gray-400 font-medium'>{patientPhone}</p>}
+                                    {item.bookingId && <p className='text-[10px] text-gray-300 font-mono'>#{item.bookingId}</p>}
+                                </td>
                                 <td className='px-6 py-4'>
                                     <p className='font-bold text-gray-900'>{slotDateFormat(item.slotDate)}</p>
                                     <p className='text-xs text-emerald-600 font-black'>{item.slotTime}</p>
                                 </td>
                                 <td className='px-6 py-4'>
+                                    <span className={`px-2 py-1 rounded-full text-[10px] font-black ${isOnline ? 'bg-violet-50 text-violet-600' : 'bg-sky-50 text-sky-600'}`}>
+                                        {isOnline ? 'Online' : 'In-clinic'}
+                                    </span>
+                                    {item.tokenNumber ? <p className='text-[10px] text-gray-400 font-bold mt-1'>Token #{item.tokenNumber}</p> : null}
+                                </td>
+                                <td className='px-6 py-4'>
                                     <p className='font-black text-gray-900'>{currency}{item.amount}</p>
                                     <span className={`text-[9px] uppercase font-black ${item.payment ? 'text-green-600' : 'text-orange-600'}`}>
-                                        {item.payment ? 'Online Paid' : 'Cash/Pending'}
+                                        {payLabel}
                                     </span>
                                 </td>
                                 <td className='px-6 py-4 text-center'>{statusBadge(item)}</td>

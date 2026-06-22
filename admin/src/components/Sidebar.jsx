@@ -101,11 +101,6 @@ const Sidebar = () => {
             <p className='md:block'>Manage Deans</p>
           </NavLink>
 
-          <NavLink onClick={closeSidebar} to={'/add-doctor'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
-            <img className='w-5' src={assets.add_icon} alt="" />
-            <p className='md:block'>Add Doctors</p>
-          </NavLink>
-
           <NavLink onClick={closeSidebar} to={'/manage-labs'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
             <img className='w-5' src={assets.list_icon} alt="" />
             <p className='md:block'>Labs</p>
@@ -120,11 +115,6 @@ const Sidebar = () => {
           <NavLink onClick={closeSidebar} to={'/manage-users'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
             <img className='w-5' src={assets.patients_icon} alt="" />
             <p className='md:block'>Users</p>
-          </NavLink>
-
-          <NavLink onClick={closeSidebar} to={'/reception-scan'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>
-            <svg className='w-5 h-5' fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
-            <p className='md:block'>Reception Scan</p>
           </NavLink>
 
           <NavLink onClick={closeSidebar} to={'/manage-receptionists'} className={({ isActive }) => `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-64 cursor-pointer transition-all ${isActive ? 'bg-[#f0f9ff] border-r-4 border-admin text-admin font-bold' : 'hover:bg-slate-50'}`}>

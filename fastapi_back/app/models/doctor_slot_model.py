@@ -54,6 +54,12 @@ async def ensure_doctor_slots_schema():
     )
     await db.execute(
         """
+        ALTER TABLE doctors
+        ADD COLUMN IF NOT EXISTS documents JSONB DEFAULT '{}'::jsonb
+        """
+    )
+    await db.execute(
+        """
         UPDATE doctors SET fees = 600 WHERE fees IS NULL OR fees = 0
         """
     )

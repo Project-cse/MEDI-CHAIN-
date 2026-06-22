@@ -215,9 +215,53 @@ async def add_hospital_doctor(hospital_id: int, data: dict):
             alphabet = string.ascii_letters + string.digits
             password = ''.join(secrets.choice(alphabet) for i in range(10))
 
-        # Cloudinary Image handling if needed, or default
         clean_name = name.replace('Dr. ', '').replace('Dr.', '').strip()
+
+        # Doctor address inherits the dean's hospital address (no separate field on the form)
+        hospital = await hospital_model.get_hospital_tieup_by_id(hospital_id)
+        hospital_name = hospital["name"] if hospital else "MediChain Hospital"
+        hospital_addr = (hospital.get("address") if hospital else "") or "Hospital Premise"
+        cabin = data.get("consultationRoom") or "Main Ward"
+
+        # Upload profile photo (base64 data URL) to Cloudinary; fall back to avatar
         image_url = f"https://ui-avatars.com/api/?name={clean_name.replace(' ', '+')}&background=4f46e5&color=fff"
+        raw_image = data.get("image")
+        if raw_image and isinstance(raw_image, str) and raw_image.startswith("data:"):
+            try:
+                import cloudinary.uploader
+                from app.services.cloudinary_folders import doctor_profile_folder
+                up = cloudinary.uploader.upload(
+                    raw_image,
+                    folder=doctor_profile_folder(),
+                    resource_type="image",
+                )
+                image_url = up.get("secure_url") or image_url
+            except Exception as img_err:
+                print(f"[WARNING] dean doctor photo upload failed: {img_err}")
+
+        # Upload credential documents (base64 data URLs) to Cloudinary
+        documents = {}
+        raw_docs = data.get("documents") or {}
+        if isinstance(raw_docs, dict):
+            for doc_key, doc_val in raw_docs.items():
+                doc_data = (doc_val or {}).get("data") if isinstance(doc_val, dict) else doc_val
+                if not (isinstance(doc_data, str) and doc_data.startswith("data:")):
+                    continue
+                try:
+                    import cloudinary.uploader
+                    from app.services.cloudinary_folders import doctor_documents_folder
+                    up = cloudinary.uploader.upload(
+                        doc_data,
+                        folder=doctor_documents_folder(),
+                        resource_type="auto",
+                    )
+                    documents[doc_key] = {
+                        "name": (doc_val or {}).get("name") if isinstance(doc_val, dict) else None,
+                        "url": up.get("secure_url"),
+                        "publicId": up.get("public_id"),
+                    }
+                except Exception as doc_err:
+                    print(f"[WARNING] dean doctor document upload failed ({doc_key}): {doc_err}")
 
         # Prepare doctor data
         doctor_data = {
@@ -233,15 +277,12 @@ async def add_hospital_doctor(hospital_id: int, data: dict):
             "hospitalId": hospital_id,
             "available": True,
             "status": "available",
-            "address": data.get("address") or {"line1": "Hospital Premise", "line2": "Main Ward"}
+            "address": {"line1": hospital_addr, "line2": cabin},
+            "documents": documents,
         }
 
         # Create doctor
         new_doctor = await doctor_model.create_doctor(doctor_data)
-        
-        # Get hospital name for email
-        hospital = await hospital_model.get_hospital_tieup_by_id(hospital_id)
-        hospital_name = hospital["name"] if hospital else "MediChain Hospital"
 
         # Send Credentials Email
         from app.services.email_service import send_doctor_credentials
@@ -350,26 +391,13 @@ async def change_doctor_availability(hospital_id: int, doctor_id):
 
 async def get_hospital_appointments(hospital_id: int):
     try:
+        from app.utils.formatters import format_appointment_for_frontend
         appts = await appointment_model.get_appointments_by_hospital_id(hospital_id)
-        formatted = []
-        for a in appts:
-            import json
-            formatted.append({
-                "_id": a["id"],
-                "id": a["id"],
-                "slotDate": a["slot_date"],
-                "slotTime": a["slot_time"],
-                "amount": float(a["amount"]),
-                "cancelled": a["cancelled"],
-                "payment": a["payment"],
-                "isCompleted": a["is_completed"],
-                "status": a.get("status"),
-                "docData": a["doctor_data"] if isinstance(a["doctor_data"], dict) else json.loads(a["doctor_data"] or "{}"),
-                "userData": a["user_data"] if isinstance(a["user_data"], dict) else json.loads(a["user_data"] or "{}"),
-            })
-        formatted.reverse()
+        # Already ordered newest-first by the query.
+        formatted = [format_appointment_for_frontend(a) for a in appts]
         return {"success": True, "appointments": formatted}
     except Exception as e:
+        print(f"[ERROR] get_hospital_appointments: {e}")
         return {"success": False, "message": str(e)}
 
 
@@ -387,10 +415,51 @@ async def cancel_appointment(hospital_id: int, appointment_id):
 async def get_hospital_patients(hospital_id: int):
     try:
         from app.models import user_model as um
-        patients = await um.get_patients_by_hospital_id(hospital_id)
         from app.utils.formatters import format_user
-        return {"success": True, "patients": [format_user(p) for p in patients]}
+
+        patients = await um.get_patients_by_hospital_id(hospital_id)
+        appts = await appointment_model.get_appointments_by_hospital_id(hospital_id)
+
+        # Build per-patient stats scoped to this hospital
+        stats: dict = {}
+        for a in appts:
+            uid = a.get("user_id")
+            if uid is None:
+                continue
+            s = stats.setdefault(uid, {
+                "visits": 0, "completed": 0, "cancelled": 0,
+                "totalSpent": 0.0, "lastTs": None, "lastSlotDate": None,
+            })
+            s["visits"] += 1
+            if a.get("is_completed"):
+                s["completed"] += 1
+            if a.get("cancelled"):
+                s["cancelled"] += 1
+            if a.get("payment"):
+                s["totalSpent"] += float(a.get("amount") or 0)
+            ts = a.get("created_at")
+            if ts is not None and (s["lastTs"] is None or ts > s["lastTs"]):
+                s["lastTs"] = ts
+                s["lastSlotDate"] = a.get("slot_date")
+
+        result = []
+        for p in patients:
+            fu = format_user(p)
+            st = stats.get(fu["id"]) or {}
+            last_ts = st.get("lastTs")
+            fu["hospitalVisits"] = st.get("visits", 0)
+            fu["completedAtHospital"] = st.get("completed", 0)
+            fu["cancelledAtHospital"] = st.get("cancelled", 0)
+            fu["totalSpent"] = round(st.get("totalSpent", 0.0), 2)
+            fu["lastSlotDate"] = st.get("lastSlotDate")
+            fu["lastBookedAt"] = last_ts.isoformat() if hasattr(last_ts, "isoformat") else last_ts
+            result.append(fu)
+
+        # Most recently active patients first
+        result.sort(key=lambda x: x.get("lastBookedAt") or "", reverse=True)
+        return {"success": True, "patients": result}
     except Exception as e:
+        print(f"[ERROR] get_hospital_patients: {e}")
         return {"success": False, "message": str(e)}
 
 

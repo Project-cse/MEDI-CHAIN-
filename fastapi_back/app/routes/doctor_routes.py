@@ -147,6 +147,20 @@ async def doctor_save_consultation(appointmentId: int, req: Request, doc_id: int
             body = {}
     return await consultation_controller.save_consultation_for_doctor(doc_id, appointmentId, body)
 
+@router.get("/appointments/{appointmentId}/consultation")
+async def doctor_get_consultation(appointmentId: int, doc_id: int = Depends(auth_doctor)):
+    return await consultation_controller.get_consultation_for_doctor(doc_id, appointmentId)
+
+@router.post("/appointments/{appointmentId}/publish-prescription")
+async def doctor_publish_prescription(appointmentId: int, req: Request, doc_id: int = Depends(auth_doctor)):
+    body = {}
+    if req.headers.get('content-type', '').startswith('application/json'):
+        try:
+            body = await req.json()
+        except Exception:
+            body = {}
+    return await consultation_controller.publish_prescription_for_doctor(doc_id, appointmentId, body)
+
 @router.post("/appointments/{appointmentId}/end-video-call")
 async def doctor_end_video_call(appointmentId: int, req: Request, doc_id: int = Depends(auth_doctor)):
     body = {}

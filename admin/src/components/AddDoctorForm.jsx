@@ -70,6 +70,7 @@ const AddDoctorForm = ({
     breadcrumb = 'Doctors › Add Doctors',
     onSubmit,
     submitting = false,
+    showAddress = true,
 }) => {
     const fileRef = useRef(null)
     const [image, setImage] = useState(null)
@@ -98,7 +99,7 @@ const AddDoctorForm = ({
 
     const checklist = useMemo(() => {
         const basic = form.name && form.gender && form.speciality && form.department && form.qualification && form.experience
-        const contact = form.phone && form.email && form.consultationRoom && form.address
+        const contact = form.phone && form.email && form.consultationRoom && (!showAddress || form.address)
         const scheduling = form.opStart && form.opEnd && form.days.length > 0 && form.fees
         const docCount = DOCS.filter(d => documents[d.key]).length
         const credentials = docCount === DOCS.length ? 'complete' : docCount > 0 ? 'partial' : 'pending'
@@ -109,7 +110,7 @@ const AddDoctorForm = ({
             credentials,
             preferences: 'complete',
         }
-    }, [form, documents])
+    }, [form, documents, showAddress])
 
     const resetForm = () => {
         setImage(null)
@@ -222,12 +223,17 @@ const AddDoctorForm = ({
                                         <label className={labelCls}>Consultation Room / Cabin *</label>
                                         <input className={inputCls} value={form.consultationRoom} onChange={e => set('consultationRoom', e.target.value)} placeholder="e.g. OPD - 304" required />
                                     </div>
-                                    <div className="sm:col-span-3">
-                                        <label className={labelCls}>Address *</label>
-                                        <textarea className={inputCls} rows={2} maxLength={150} value={form.address} onChange={e => set('address', e.target.value)} placeholder="Full clinic / hospital address" required />
-                                        <p className="text-[10px] text-slate-400 text-right mt-1">{form.address.length} / 150</p>
-                                    </div>
+                                    {showAddress && (
+                                        <div className="sm:col-span-3">
+                                            <label className={labelCls}>Address *</label>
+                                            <textarea className={inputCls} rows={2} maxLength={150} value={form.address} onChange={e => set('address', e.target.value)} placeholder="Full clinic / hospital address" required />
+                                            <p className="text-[10px] text-slate-400 text-right mt-1">{form.address.length} / 150</p>
+                                        </div>
+                                    )}
                                 </div>
+                                {!showAddress && (
+                                    <p className="text-[11px] text-slate-400 mt-2">The doctor's address is automatically set to your hospital's address.</p>
+                                )}
                             </div>
 
                             {/* Scheduling & Consultation */}

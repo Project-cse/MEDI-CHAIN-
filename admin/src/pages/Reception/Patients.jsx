@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react'
 import { ReceptionContext } from '../../context/ReceptionContext'
 import { PageWrap, RcHeader, Avatar, EmptyState, Spinner, ReceptionTabs, RECEPTION_TAB_GROUPS } from './components'
+import { ExportMenu } from '../../components/mc'
 
 const TYPE_STYLES = {
   Online: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
@@ -112,6 +113,22 @@ const Patients = () => {
     ? new Date(date).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
     : 'All dates'
 
+  const exportColumns = [
+    { key: 'name', label: 'Patient' },
+    { key: 'publicId', label: 'Patient ID' },
+    { key: 'phone', label: 'Mobile' },
+    { key: 'gender', label: 'Gender' },
+    { key: 'age', label: 'Age' },
+    { key: 'email', label: 'Email' },
+    { key: 'type', label: 'Type' },
+    { key: (p) => (String(p.mode || '').toLowerCase().includes('video') || String(p.mode || '').toLowerCase().includes('online') ? 'Online (Video)' : (p.mode ? 'In-clinic' : '')), label: 'Mode' },
+    { key: (p) => fmtPayMethod(p.paymentMethod), label: 'Payment' },
+    { key: (p) => (p.paid ? 'Paid' : 'Unpaid'), label: 'Paid' },
+    { key: (p) => (p.cancelled ? 'Cancelled' : 'Active'), label: 'Booking' },
+    { key: (p) => p.appointments ?? p.visits ?? 0, label: 'Appointments' },
+    { key: (p) => fmtDate(p.lastVisit, p.lastVisitDate), label: 'Last Visit' },
+  ]
+
   return (
     <PageWrap>
       <RcHeader title='Patients' subtitle='All patients registered at your hospital' />
@@ -153,6 +170,13 @@ const Patients = () => {
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder='Search name, mobile, email or ID'
                 className='w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:border-reception outline-none text-sm' />
             </div>
+            <ExportMenu
+              columns={exportColumns}
+              rows={() => rows}
+              filename='reception_patients'
+              title='Reception · Patients'
+              subtitle={`${prettyDate} · ${rows.length} record(s)`}
+            />
           </div>
         </div>
 

@@ -162,6 +162,28 @@ async def notify_appointment_cancelled(user_id: int, doctor_name: str, appointme
     )
 
 
+async def notify_prescription_ready(
+    user_id: int,
+    doctor_name: str,
+    appointment_id: int,
+    updated: bool = False,
+):
+    """Real-time push when a doctor publishes/updates a prescription for the patient."""
+    await send_to_user(
+        user_id,
+        title="Prescription updated" if updated else "Your prescription is ready",
+        body=(
+            f"Dr. {doctor_name} updated your prescription. Tap to view the details."
+            if updated
+            else f"Dr. {doctor_name} has shared your prescription. Tap to view it."
+        ),
+        data={
+            "type": "prescription",
+            "appointmentId": str(appointment_id),
+        },
+    )
+
+
 async def notify_doctor_incoming_video_consult(
     doctor_id: int,
     patient_name: str,

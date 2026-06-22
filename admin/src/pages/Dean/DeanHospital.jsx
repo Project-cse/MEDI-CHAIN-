@@ -32,6 +32,7 @@ const DeanHospital = () => {
     if (hospital) setForm({
       name: hospital.name || '',
       address: hospital.address || '',
+      mapsLink: hospital.maps_link || hospital.mapsLink || '',
       contact: hospital.contact || '',
       specialization: hospital.specialization || '',
     })
@@ -73,6 +74,7 @@ const DeanHospital = () => {
     if (hospital) setForm({
       name: hospital.name || '',
       address: hospital.address || '',
+      mapsLink: hospital.maps_link || hospital.mapsLink || '',
       contact: hospital.contact || '',
       specialization: hospital.specialization || '',
     })
@@ -136,13 +138,14 @@ const DeanHospital = () => {
         features={['Verified Partner', 'Live Profile', 'Secure Records']}
       />
 
-      {/* Hospital account banner — uses uploaded image, falls back to teal/blue gradient */}
-      <div className='relative overflow-hidden rounded-2xl shadow-lg min-h-[150px] flex items-end bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-600'>
+      {/* Hospital account banner — full-width horizontal banner from the uploaded photo */}
+      <div className='relative overflow-hidden rounded-2xl shadow-lg min-h-[170px] flex items-end bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-600'>
         {bannerUrl && (
           <>
-            {/* Photo only on the right side — the left stays a solid brand panel for the text */}
-            <img src={bannerUrl} alt='Hospital banner' className='absolute inset-y-0 right-0 h-full w-1/2 sm:w-2/5 object-cover object-center' />
-            <div className='absolute inset-y-0 right-0 w-1/2 sm:w-2/5 bg-gradient-to-r from-teal-600 via-teal-600/40 to-transparent' />
+            {/* Any uploaded photo (portrait or landscape) is cropped to a wide banner */}
+            <img src={bannerUrl} alt='Hospital banner' className='absolute inset-0 h-full w-full object-cover object-center' />
+            {/* Dark scrim so the title stays readable over any photo */}
+            <div className='absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-black/20' />
           </>
         )}
         <div className='relative z-10 flex items-center gap-4 p-5 w-full'>
@@ -189,7 +192,7 @@ const DeanHospital = () => {
                   </button>
                 )}
               </div>
-              <p className='text-[11px] text-slate-400'>Recommended: 1200 × 400 px, JPG/PNG/WebP. Max size 2 MB.</p>
+              <p className='text-[11px] text-slate-400'>Upload any photo — portrait or landscape. It is automatically cropped to a wide banner and used as the hospital image in the app. JPG/PNG/WebP, max 2 MB.</p>
               <input ref={fileRef} type='file' accept='image/jpeg,image/png,image/webp' hidden onChange={handleSelectImage} />
             </div>
           </div>
@@ -200,7 +203,26 @@ const DeanHospital = () => {
       <McCard title="Hospital Information" action={editAction}>
         <div className='space-y-5'>
           {field('Hospital Name', 'name', 'Enter hospital name')}
-          {field('Address', 'address', 'Full address')}
+          {field('Address', 'address', 'Full text address')}
+
+          <div>
+            <p className='text-[11px] font-bold uppercase tracking-wider text-sky-600 mb-1'>Google Maps Link</p>
+            {editing ? (
+              <input value={form.mapsLink || ''} onChange={e => setForm(f => ({ ...f, mapsLink: e.target.value }))}
+                placeholder='https://maps.google.com/...' className={inputCls} />
+            ) : (
+              (hospital.maps_link || hospital.mapsLink) ? (
+                <a href={hospital.maps_link || hospital.mapsLink} target='_blank' rel='noreferrer'
+                  className='text-sm font-medium text-sky-600 hover:underline break-all py-1 inline-flex items-center gap-1'>
+                  <svg className='w-4 h-4 shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z' /><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 11a3 3 0 11-6 0 3 3 0 016 0z' /></svg>
+                  Open in Google Maps
+                </a>
+              ) : (
+                <p className='text-slate-800 text-sm font-medium py-1'>—</p>
+              )
+            )}
+          </div>
+
           {field('Contact Number', 'contact', 'Phone number')}
           {field('Specialization', 'specialization', 'E.g. Cardiology, General Medicine')}
 

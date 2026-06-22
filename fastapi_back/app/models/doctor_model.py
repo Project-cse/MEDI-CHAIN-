@@ -147,8 +147,8 @@ async def create_doctor(doctor_data: Dict[str, Any]):
     sql = """
         INSERT INTO doctors (
             name, email, password, image, speciality, degree, experience,
-            about, available, fees, address_line1, address_line2, date, slots_booked, hospital_id, video_consult, public_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            about, available, fees, address_line1, address_line2, date, slots_booked, hospital_id, video_consult, public_id, documents
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *
     """
     values = (
@@ -169,6 +169,7 @@ async def create_doctor(doctor_data: Dict[str, Any]):
         doctor_data.get('hospitalId'),
         doctor_data.get('videoConsult', False),
         public_id,
+        json.dumps(doctor_data.get('documents') or {}),
     )
     return await db.fetch_row(sql, *values)
 
