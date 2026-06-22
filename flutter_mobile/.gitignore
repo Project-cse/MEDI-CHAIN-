@@ -46,3 +46,10 @@ app.*.map.json
 
 # Kotlin compiler daemon cache
 /android/.kotlin/
+
+# Release signing — keep secrets out of git. BACK THESE UP SEPARATELY!
+/android/key.properties
+/android/*.jks
+/android/*.keystore
+/android/app/*.jks
+/android/app/*.keystore
