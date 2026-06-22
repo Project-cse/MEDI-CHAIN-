@@ -67,25 +67,34 @@ class _OnboardingEmergencyStepState extends ConsumerState<OnboardingEmergencySte
     );
 
     setState(() => _saving = true);
+    final service = ref.read(onboardingServiceProvider);
+
+    // The contact must be persisted on the server before we move on. The
+    // backend de-duplicates by phone, so a retry can't create a second row.
+    bool saved = false;
     try {
-      // The contact must be persisted on the server before we move on. The
-      // backend de-duplicates by phone, so a retry after a flaky failure
-      // updates the same row instead of creating a second one.
-      await ref
-          .read(onboardingServiceProvider)
+      await service
           .addEmergencyContact(
             name: contact.name,
             phone: contact.phone,
             relation: contact.relation ?? '',
           )
-          .timeout(const Duration(seconds: 15));
-      // Mirror it locally only after the server confirms the save.
-      await ref.read(emergencySettingsProvider.notifier).upsertPrimaryContact(contact);
-      if (!mounted) return;
-      await ref.read(onboardingProvider.notifier).completeEmergencyContact();
+          .timeout(const Duration(seconds: 25));
+      saved = true;
     } catch (_) {
-      // Network/backend failure — keep what they typed and ask them to retry.
-      if (!mounted) return;
+      // A cold/slow backend can make the request time out on the client even
+      // though the server actually saved it. Verify before declaring failure
+      // so we don't bounce the user back on a save that really succeeded.
+      try {
+        saved = await service.hasEmergencyContacts().timeout(const Duration(seconds: 10));
+      } catch (_) {
+        saved = false;
+      }
+    }
+
+    if (!mounted) return;
+
+    if (!saved) {
       setState(() => _saving = false);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -101,6 +110,14 @@ class _OnboardingEmergencyStepState extends ConsumerState<OnboardingEmergencySte
         );
       return;
     }
+
+    // Mirror locally (non-fatal) and advance — never let a local-storage hiccup
+    // block the flow once the server has the contact.
+    try {
+      await ref.read(emergencySettingsProvider.notifier).upsertPrimaryContact(contact);
+    } catch (_) {}
+    if (!mounted) return;
+    await ref.read(onboardingProvider.notifier).completeEmergencyContact();
     if (mounted) setState(() => _saving = false);
   }
 

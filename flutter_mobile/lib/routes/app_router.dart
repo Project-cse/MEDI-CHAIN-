@@ -69,10 +69,15 @@ String? _authRedirect(Ref ref, GoRouterState state) {
     return null;
   }
 
+  // While on the splash, let the SplashScreen drive its own exit (after the
+  // intro video) instead of the router yanking it to the dashboard mid-video.
+  if (loc == RouteNames.splash) {
+    return null;
+  }
+
   if (auth.status == AuthStatus.authenticated) {
     if (loc == RouteNames.login ||
         loc == RouteNames.signup ||
-        loc == RouteNames.splash ||
         loc == RouteNames.forgotPassword) {
       return RouteNames.dashboard;
     }

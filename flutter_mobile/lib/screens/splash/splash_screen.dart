@@ -156,7 +156,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       }
     });
 
-    final fadingOut = _videoFinished;
+    // Only fade out once we're actually navigating away. Fading on
+    // `_videoFinished` alone leaves a blank (white) screen while we wait for
+    // the auth check to finish on a cold/slow backend.
+    final fadingOut = _handoffStarted;
 
     return Scaffold(
       backgroundColor: MedcluesPalette.splashCanvas,
@@ -224,6 +227,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       fit: StackFit.expand,
       children: [
         FullscreenSplashVideo(controller: c),
+        // Video done but auth still resolving (cold backend): keep the branded
+        // last frame visible and show a subtle loader instead of a blank screen.
+        if (_videoFinished && !_handoffStarted)
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 64,
+            child: Center(
+              child: SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: MedcluesPalette.medicalTeal,
+                ),
+              ),
+            ),
+          ),
         const EmergencyHelpButton(
           style: EmergencyHelpButtonStyle.floating,
           replaceRoute: true,
