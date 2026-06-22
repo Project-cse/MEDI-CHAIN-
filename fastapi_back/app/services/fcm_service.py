@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -19,20 +20,41 @@ def _credentials_path() -> Optional[Path]:
     return path if path.is_file() else None
 
 
+def _credentials_dict() -> Optional[Dict[str, Any]]:
+    """Service-account JSON provided directly via env (easiest on Render)."""
+    raw = os.getenv("FIREBASE_CREDENTIALS_JSON", "").strip()
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else None
+    except Exception as e:
+        print(f"[WARNING] FIREBASE_CREDENTIALS_JSON is not valid JSON — push disabled ({e})")
+        return None
+
+
 def _ensure_firebase():
     global _initialized
     if _initialized:
         return True
+    cred_dict = _credentials_dict()
     cred_path = _credentials_path()
-    if not cred_path:
-        print("[WARNING] FIREBASE_CREDENTIALS_PATH not set or file missing — push disabled")
+    if not cred_dict and not cred_path:
+        print(
+            "[WARNING] Firebase Admin credentials not set "
+            "(FIREBASE_CREDENTIALS_JSON or FIREBASE_CREDENTIALS_PATH) — push disabled"
+        )
         return False
     try:
         import firebase_admin
         from firebase_admin import credentials
 
         if not firebase_admin._apps:
-            cred = credentials.Certificate(str(cred_path))
+            cred = (
+                credentials.Certificate(cred_dict)
+                if cred_dict
+                else credentials.Certificate(str(cred_path))
+            )
             firebase_admin.initialize_app(cred)
         _initialized = True
         return True
