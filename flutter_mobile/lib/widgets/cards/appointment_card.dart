@@ -17,6 +17,7 @@ class AppointmentCard extends StatelessWidget {
     this.onTap,
     this.onCancel,
     this.onAddToCalendar,
+    this.onJoinVideo,
   });
 
   final AppointmentModel appointment;
@@ -24,11 +25,13 @@ class AppointmentCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onCancel;
   final VoidCallback? onAddToCalendar;
+  final VoidCallback? onJoinVideo;
 
   @override
   Widget build(BuildContext context) {
     final isUpcoming = appointment.isUpcoming;
 
+    final showJoin = isUpcoming && appointment.isOnlineVisit && onJoinVideo != null;
     final showActions = isUpcoming && (onAddToCalendar != null || onCancel != null);
 
     Widget info = Row(
@@ -125,6 +128,27 @@ class AppointmentCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           info,
+          if (showJoin) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onJoinVideo,
+                icon: const Icon(Icons.videocam_rounded, size: 18),
+                label: Text(
+                  'Join Video Call',
+                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryBlue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
           if (showActions) ...[
             const SizedBox(height: 10),
             Row(

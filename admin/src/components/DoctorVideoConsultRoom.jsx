@@ -62,6 +62,7 @@ const DoctorVideoConsultRoom = ({
   const [callSeconds, setCallSeconds] = useState(0)
   const [callStartedAtMs, setCallStartedAtMs] = useState(null)
   const [consultationId, setConsultationId] = useState(null)
+  const [liveAppointment, setLiveAppointment] = useState(null)
   const [callActive, setCallActive] = useState(false)
   const [callEndedMessage, setCallEndedMessage] = useState(null)
   const [publishCamera, setPublishCamera] = useState(publishCameraInitial)
@@ -110,16 +111,18 @@ const DoctorVideoConsultRoom = ({
     typeof rawAddr === 'string'
       ? rawAddr
       : [rawAddr?.line1, rawAddr?.line2].filter(Boolean).join(', ') || '—'
-  const apSymptoms = appointment?.actualPatient?.symptoms
+  // Prefer fresh data pulled at join time; fall back to the cached list prop.
+  const appt = { ...(appointment || {}), ...(liveAppointment || {}) }
+  const apSymptoms = appt?.actualPatient?.symptoms
   const rawSymptoms = [
-    ...(appointment?.selectedSymptoms || []),
+    ...(appt?.selectedSymptoms || []),
     ...(typeof apSymptoms === 'string' && apSymptoms.trim()
       ? apSymptoms.split(',').map((s) => s.trim()).filter(Boolean)
       : []),
   ]
   const symptoms = rawSymptoms.filter((s) => !String(s).startsWith('Note:'))
   const bookingReportUrl =
-    appointment?.userData?.bookingReportUrl || appointment?.actualPatient?.prescription || null
+    appt?.userData?.bookingReportUrl || appt?.actualPatient?.prescription || null
   const patientBookingNotes = [
     ...rawSymptoms
       .filter((s) => String(s).startsWith('Note:'))
@@ -296,7 +299,7 @@ const DoctorVideoConsultRoom = ({
       } catch (_) {}
     }
 
-    setTimeout(() => onLeave?.(), 2500)
+    setTimeout(() => onLeave?.(), 900)
   }
 
   const subscribeRemoteUser = async (client, user) => {
@@ -358,6 +361,7 @@ const DoctorVideoConsultRoom = ({
         if (cancelled || attempt !== joinAttemptRef.current) return
 
         if (data.consultationId) setConsultationId(data.consultationId)
+        if (data.appointment) setLiveAppointment(data.appointment)
 
         const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
         clientRef.current = client

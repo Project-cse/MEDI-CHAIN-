@@ -116,8 +116,14 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
       return;
     }
     if (!_emailVerified) {
-      setState(() => _error = 'Please verify your email to continue');
-      return;
+      // Don't silently block — actively guide the user through OTP verification.
+      await _sendEmailOtp();
+      if (!mounted || !_emailVerified) {
+        if (mounted) {
+          setState(() => _error ??= 'Please verify your email to continue');
+        }
+        return;
+      }
     }
 
     setState(() => _saving = true);
@@ -161,29 +167,40 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
   @override
   void initState() {
     super.initState();
+    // Render the form instantly using whatever we already have (auth user +
+    // any cached profile) so step 7 -> 8 is never blocked by a network call.
+    final authUser = ref.read(authProvider).user;
+    final cached = ref.read(patientProfileProvider).valueOrNull;
+    _applyPrefill(cached, authUser);
+    _ready = true;
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
+  /// Background refresh — fills any missing fields and the email-verified flag
+  /// without ever blocking the UI.
   Future<void> _bootstrap() async {
-    final authUser = ref.read(authProvider).user;
     try {
-      final p = await ref.read(patientProfileProvider.future).timeout(const Duration(seconds: 10));
+      final p = await ref
+          .read(patientProfileProvider.future)
+          .timeout(const Duration(seconds: 10));
       if (!mounted) return;
-      final status = await ref.read(onboardingServiceProvider).fetchStatus().timeout(const Duration(seconds: 8));
-      if (status.profileCompleted) {
-        await ref.read(onboardingProvider.notifier).completeProfile();
-        return;
-      }
       setState(() {
-        _applyPrefill(p, authUser);
-        _ready = true;
+        if (p.emailVerified) _emailVerified = true;
+        if (_email.text.trim().isEmpty) _email.text = p.email ?? _email.text;
+        if (_name.text.trim().isEmpty && p.name.trim().isNotEmpty) _name.text = p.name;
+        _phone.text = _phone.text.trim().isEmpty
+            ? (ProfileOptions.sanitize(p.phone) ?? _phone.text)
+            : _phone.text;
+        _gender ??= ProfileOptions.normalizeGender(p.gender);
+        _bloodGroup ??= ProfileOptions.normalizeBloodGroup(p.bloodGroup);
+        if (_address.text.trim().isEmpty) _address.text = p.address ?? _address.text;
+        if (_dob == null) {
+          final dobRaw = ProfileOptions.sanitize(p.dob);
+          if (dobRaw != null) _dob = DateTime.tryParse(dobRaw) ?? _tryParseDob(dobRaw);
+        }
       });
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _applyPrefill(null, authUser);
-        _ready = true;
-      });
+      // Offline / slow backend — the form is already usable, so just continue.
     }
   }
 

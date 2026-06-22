@@ -231,6 +231,22 @@ async def get_agora_token_for_doctor_appointment(doctor_id: int, appointment_id:
     if token_err:
         return {'success': False, 'message': token_err}
     payload['role'] = 'doctor'
+
+    # Attach fresh clinical context (symptoms / reports / patient) so the room
+    # never depends on a possibly-stale cached appointment list.
+    try:
+        appt_row = await appointment_model.get_appointment_by_id(int(appointment_id))
+        if appt_row:
+            from app.utils.formatters import format_appointment_for_frontend
+            formatted = format_appointment_for_frontend(appt_row)
+            payload['appointment'] = {
+                'selectedSymptoms': formatted.get('selectedSymptoms'),
+                'actualPatient': formatted.get('actualPatient'),
+                'userData': formatted.get('userData'),
+            }
+    except Exception as ctx_err:
+        print(f"[WARNING] Could not attach consult context: {ctx_err}")
+
     return payload
 
 async def get_video_consult_doctors(lat: float = None, lon: float = None, distance: str = 'all'):

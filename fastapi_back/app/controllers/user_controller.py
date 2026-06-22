@@ -1116,9 +1116,28 @@ async def cancel_appointment(user_id: int, appointment_id: int):
         if not result.get("success"):
             return result
 
+        # The appointment is already marked cancelled by cancel_with_policy.
+        # Slot release, legacy slot-map cleanup, the socket event and all
+        # notifications are not needed for the response, so run them off the
+        # request path to keep cancel fast.
+        asyncio.create_task(_post_cancel_cleanup(user_id, int(appointment_id)))
+
+        return {
+            "success": True,
+            "message": "Appointment Cancelled",
+            "refund": result.get("refund"),
+            "lifecycle": result.get("lifecycle"),
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+async def _post_cancel_cleanup(user_id: int, appointment_id: int):
+    """Free the slot, update legacy maps and notify — all off the request path."""
+    try:
         appointment = await appointment_model.get_appointment_by_id(int(appointment_id))
         if not appointment:
-            return result
+            return
 
         doc_id = appointment['doctor_id']
         try:
@@ -1131,7 +1150,7 @@ async def cancel_appointment(user_id: int, appointment_id: int):
         if doc_data:
             slots_booked = doc_data.get('slots_booked', {})
             if isinstance(slots_booked, str): slots_booked = json.loads(slots_booked)
-            
+
             date = appointment['slot_date']
             time_str = appointment['slot_time']
             slot_id = appointment.get('slot_id')
@@ -1145,69 +1164,53 @@ async def cancel_appointment(user_id: int, appointment_id: int):
                     slots_booked[date].remove(time_str)
                 await doctor_model.update_doctor(doc_id, {"slots_booked": slots_booked})
 
-        # Trigger Real-time update
         from app.services.socket_service import sio
         await sio.emit('appointments-deleted', {'id': appointment_id})
 
+        user_data = await user_model.get_user_by_id(user_id)
+        doc_name = (doc_data or {}).get("name") or "your doctor"
+
         try:
             from app.services import fcm_service
-            doc_name = "your doctor"
-            if doc_data and doc_data.get("name"):
-                doc_name = doc_data["name"]
-            asyncio.create_task(
-                fcm_service.notify_appointment_cancelled(
-                    user_id, doc_name, int(appointment_id)
-                )
+            await fcm_service.notify_appointment_cancelled(
+                user_id, doc_name, int(appointment_id)
             )
         except Exception as push_err:
             print(f"[WARNING] FCM cancel push: {push_err}")
 
         try:
-            user_data = await user_model.get_user_by_id(user_id)
             if user_data and user_data.get("email"):
                 cancel_details = {
-                    "doctorName": doc_data["name"] if doc_data else "Doctor",
+                    "doctorName": doc_name if doc_data else "Doctor",
                     "date": str(appointment.get("slot_date", "")).replace("_", "/"),
                     "time": appointment.get("slot_time", ""),
                     "tokenNumber": appointment.get("token_number", "N/A"),
                     "publicId": appointment.get("public_id") or f"APT{appointment_id}",
                     "bookingId": appointment.get("booking_id") or f"#APT{appointment_id}",
                 }
-                asyncio.create_task(
-                    email_service.send_appointment_cancelled(
-                        user_data["email"],
-                        user_data.get("name", "Patient"),
-                        cancel_details,
-                        reason="Cancelled by user",
-                    )
+                await email_service.send_appointment_cancelled(
+                    user_data["email"],
+                    user_data.get("name", "Patient"),
+                    cancel_details,
+                    reason="Cancelled by user",
                 )
         except Exception as email_err:
             print(f"[WARNING] Cancel email failed: {email_err}")
 
         try:
             from app.services import telegram_notify_service
-            user_data = await user_model.get_user_by_id(user_id)
             if user_data:
-                asyncio.create_task(
-                    telegram_notify_service.notify_appointment_cancelled(
-                        user_id,
-                        doc_data["name"] if doc_data else "Doctor",
-                        str(appointment.get("slot_date", "")),
-                        user_data.get("name", "Patient"),
-                        reason="Cancelled by user",
-                    )
+                await telegram_notify_service.notify_appointment_cancelled(
+                    user_id,
+                    doc_name if doc_data else "Doctor",
+                    str(appointment.get("slot_date", "")),
+                    user_data.get("name", "Patient"),
+                    reason="Cancelled by user",
                 )
         except Exception as tg_err:
             print(f"[WARNING] Telegram cancel notify: {tg_err}")
-
-        return {
-            "success": True,
-            "message": "Appointment Cancelled",
-            "refund": result.get("refund"),
-            "lifecycle": result.get("lifecycle"),
-        }
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        print(f"[WARNING] post-cancel cleanup failed: {e}")
 
 # --- Razorpay Payment ---
 

@@ -9,6 +9,16 @@ from app.models import hospital_policy_model
 from app.services import audit_service, trust_score_service
 
 
+def _as_date(value: Any) -> Optional[date]:
+    """Coerce an ISO date string to a date for asyncpg DATE columns."""
+    if value is None or isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except Exception:
+        return None
+
+
 def _add_working_days(start: date, days: int) -> date:
     current = start
     added = 0
@@ -102,7 +112,7 @@ async def create_refund_record(
         int(calc["platformFeePaise"]),
         reason,
         bool(calc["isFirstRefund"]),
-        calc.get("expectedBy"),
+        _as_date(calc.get("expectedBy")),
     )
 
     if calc["isFirstRefund"]:

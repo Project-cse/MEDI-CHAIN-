@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../constants/app_colors.dart';
 import '../../l10n/l10n_extension.dart';
 import '../../providers/service_providers.dart';
+import '../../routes/route_names.dart';
 import '../../services/agora_session_manager.dart';
 import '../../services/app_permissions_service.dart';
 import '../../services/consultation_service.dart';
@@ -46,7 +47,6 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
   bool _hadRemote = false;
   int? _remoteJoinedAtMs;
   bool _callEnding = false;
-  bool _patientLeft = false;
   String? _callEndedMessage;
   Timer? _callTimer;
   Timer? _statusPollTimer;
@@ -99,7 +99,7 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
         // Ignore stale ended from a prior attempt until we have joined the channel.
         // While the patient has temporarily left (rejoin screen), still react to a
         // doctor-ended call so they aren't stuck on the rejoin overlay.
-        if (status['ended'] == true && (_joined || _patientLeft)) {
+        if (status['ended'] == true && _joined) {
           await _handleCallEnded('The doctor ended the consultation.');
           return;
         }
@@ -170,7 +170,6 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
   Future<void> _handleCallEnded(String message, {bool notifyServer = false}) async {
     if (_callEnding) return;
     _callEnding = true;
-    _patientLeft = false;
     _callTimer?.cancel();
     _statusPollTimer?.cancel();
     _chatPollTimer?.cancel();
@@ -363,53 +362,50 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
   /// Patient taps "End"/back: disconnect locally but DO NOT complete the
   /// consultation on the server, so they can rejoin within their slot if it was
   /// a mistake. The doctor stays in the room and remains in control of ending.
-  Future<void> _leave() async {
-    if (_callEnding || _patientLeft) return;
-    _patientLeft = true;
-    _callTimer?.cancel();
-    _chatPollTimer?.cancel();
-    // Keep status polling running so we detect if the doctor ends meanwhile.
+  bool _togglingCamera = false;
+
+  /// Robust camera on/off. Using only muteLocalVideoStream leaves the capture
+  /// running and can freeze the last frame; toggling enableLocalVideo actually
+  /// stops/starts the camera and re-arms the preview so it never freezes.
+  Future<void> _toggleCamera() async {
+    if (_togglingCamera) return;
+    _togglingCamera = true;
     final engine = _engine;
-    _engine = null;
-    await _tearDownEngine(engine);
-    if (mounted) {
-      setState(() {
-        _joined = false;
-        _remoteUid = null;
-        _hadRemote = false;
-        _remoteJoinedAtMs = null;
-        _localPreviewReady = false;
-        _chatOpen = false;
-      });
+    final turnOff = !_videoOff;
+    try {
+      await engine?.muteLocalVideoStream(turnOff);
+      await engine?.enableLocalVideo(!turnOff);
+      if (!turnOff) {
+        _localPreviewReady = true;
+        if (!kIsWeb) {
+          try {
+            await engine?.startPreview();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {
+    } finally {
+      _togglingCamera = false;
+      if (mounted) setState(() => _videoOff = turnOff);
     }
   }
 
-  /// Rejoin the same call after an accidental disconnect (within the slot).
-  Future<void> _rejoin() async {
+  /// Patient exits the room without ending the consultation. The doctor stays
+  /// in the room and the patient can rejoin from the appointment card (Join
+  /// Video Call) while still within their slot.
+  Future<void> _leave() async {
     if (_callEnding) return;
-    setState(() {
-      _patientLeft = false;
-      _loading = true;
-      _error = null;
-      _joined = false;
-      _remoteUid = null;
-      _hadRemote = false;
-      _remoteJoinedAtMs = null;
-      _callStartedAtMs = null;
-      _muted = false;
-      _videoOff = false;
-      _localPreviewReady = false;
-    });
-    if (_alive) await _start();
-  }
-
-  /// Patient chooses to fully leave (no rejoin) -> go to the summary.
-  void _exitToSummary() {
+    _callTimer?.cancel();
     _statusPollTimer?.cancel();
-    if (mounted) {
-      context.pushReplacement(
-        '/consultation-summary/${widget.appointmentId}?seconds=$_callSeconds',
-      );
+    _chatPollTimer?.cancel();
+    final engine = _engine;
+    _engine = null;
+    await _tearDownEngine(engine);
+    if (!mounted) return;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(RouteNames.appointments);
     }
   }
 
@@ -438,9 +434,9 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return PopScope(
-      canPop: _loading || _error != null || _patientLeft,
+      canPop: _loading || _error != null,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && !_loading && _error == null && !_patientLeft) {
+        if (!didPop && !_loading && _error == null) {
           _leave();
         }
       },
@@ -468,7 +464,7 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
         ),
       ),
       body: _buildBody(),
-      bottomNavigationBar: _loading || _error != null || _patientLeft
+      bottomNavigationBar: _loading || _error != null
           ? null
           : SafeArea(
               child: Padding(
@@ -487,10 +483,7 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
                     _controlBtn(
                       icon: _videoOff ? Icons.videocam_off : Icons.videocam,
                       label: _videoOff ? l10n.videoCameraOn : l10n.videoCameraOff,
-                      onTap: () async {
-                        await _engine?.muteLocalVideoStream(!_videoOff);
-                        setState(() => _videoOff = !_videoOff);
-                      },
+                      onTap: _toggleCamera,
                     ),
                     _controlBtn(
                       icon: _speakerOn ? Icons.volume_up : Icons.volume_off,
@@ -560,8 +553,6 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
         ),
       );
     }
-
-    if (_patientLeft) return _buildRejoinView();
 
     final engine = _engine;
     if (engine == null) return const SizedBox.shrink();
@@ -719,67 +710,6 @@ class _VideoConsultScreenState extends ConsumerState<VideoConsultScreen> {
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildRejoinView() {
-    return ColoredBox(
-      color: const Color(0xFF12121A),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.call_end, color: Colors.redAccent, size: 56),
-              const SizedBox(height: 18),
-              Text(
-                'You left the consultation',
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Left by mistake? You can rejoin while your slot is still active.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(color: Colors.white60, fontSize: 13),
-              ),
-              const SizedBox(height: 26),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _rejoin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  icon: const Icon(Icons.video_call),
-                  label: Text(
-                    'Rejoin call',
-                    style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600, fontSize: 15),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: _exitToSummary,
-                child: Text(
-                  'Leave consultation',
-                  style: GoogleFonts.poppins(color: Colors.white54, fontSize: 14),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

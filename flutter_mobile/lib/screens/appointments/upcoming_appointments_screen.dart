@@ -10,6 +10,7 @@ import '../../utils/theme_context.dart';
 import '../../models/appointment_model.dart';
 import '../../providers/appointment_provider.dart';
 import '../../routes/route_names.dart';
+import '../../services/app_permissions_service.dart';
 import '../../widgets/cards/appointment_card.dart';
 import '../../widgets/common/app_empty_state.dart';
 import '../../widgets/common/app_snackbar.dart';
@@ -155,6 +156,19 @@ class _UpcomingAppointmentsScreenState extends ConsumerState<UpcomingAppointment
                       appointment: a,
                       showBadge: canCancel,
                       onTap: () => context.push('/appointments/${a.id}'),
+                      onJoinVideo: canCancel
+                          ? () async {
+                              try {
+                                await AppPermissionsService.requireVideoConsult();
+                              } on VideoConsultPermissionException catch (e) {
+                                if (!context.mounted) return;
+                                AppSnackbar.show(context, e.toString());
+                                return;
+                              }
+                              if (!context.mounted) return;
+                              context.push('/video-waiting/${a.id}');
+                            }
+                          : null,
                       onAddToCalendar: canCancel
                           ? () async {
                               final ok = await CalendarHelper.addAppointmentToCalendar(a);

@@ -351,13 +351,16 @@ async def _book_after_payment(user_id: int, pending: dict, razorpay_order_id: st
         except Exception as e:
             log.warning("Could not mark appointment paid: %s", e)
 
-        try:
-            from app.controllers import consultation_controller
-            await consultation_controller.ensure_consultation_for_appointment(
-                user_id, int(real_appointment_id)
-            )
-        except Exception as consult_err:
-            log.warning("Video consultation session setup: %s", consult_err)
+        # Consultation/Agora session is set up on demand when the call starts,
+        # so create it in the background to keep the payment response fast.
+        async def _setup_consultation_bg(uid: int, aid: int):
+            try:
+                from app.controllers import consultation_controller
+                await consultation_controller.ensure_consultation_for_appointment(uid, aid)
+            except Exception as consult_err:
+                log.warning("Video consultation session setup: %s", consult_err)
+
+        asyncio.create_task(_setup_consultation_bg(user_id, int(real_appointment_id)))
 
         paid_row = await pt_model.mark_paid(
             razorpay_order_id,
