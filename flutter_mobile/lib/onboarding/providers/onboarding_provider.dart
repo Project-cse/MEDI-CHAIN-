@@ -7,7 +7,7 @@ import '../models/onboarding_status.dart';
 import '../onboarding_tour_steps.dart';
 import '../services/onboarding_service.dart';
 
-enum OnboardingPhase { loading, tour, emergency, profile, complete, done }
+enum OnboardingPhase { loading, tour, setup, complete, done }
 
 class OnboardingUiState {
   const OnboardingUiState({
@@ -56,8 +56,10 @@ class OnboardingNotifier extends StateNotifier<OnboardingUiState> {
 
   OnboardingPhase _phaseFor(OnboardingStatus status) {
     if (!status.tutorialCompleted) return OnboardingPhase.tour;
-    if (!status.emergencyContactCompleted) return OnboardingPhase.emergency;
-    if (!status.profileCompleted) return OnboardingPhase.profile;
+    // Emergency contact + profile are collected together on one robust screen.
+    if (!status.emergencyContactCompleted || !status.profileCompleted) {
+      return OnboardingPhase.setup;
+    }
     return OnboardingPhase.complete;
   }
 
@@ -92,8 +94,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingUiState> {
   }
 
   OnboardingPhase _nextPhaseFrom(OnboardingStatus status) {
-    if (!status.emergencyContactCompleted) return OnboardingPhase.emergency;
-    if (!status.profileCompleted) return OnboardingPhase.profile;
+    if (!status.emergencyContactCompleted || !status.profileCompleted) {
+      return OnboardingPhase.setup;
+    }
     return OnboardingPhase.complete;
   }
 
@@ -152,22 +155,21 @@ class OnboardingNotifier extends StateNotifier<OnboardingUiState> {
     await _advanceAfterTour();
   }
 
-  Future<void> completeEmergencyContact() async {
-    // The contact (and the server-side flag) is already persisted by the
-    // caller's addEmergencyContact call. Advance instantly from local truth;
-    // _applyAdvance re-persists the onboarding status in the background.
-    final next = state.status.copyWith(emergencyContactCompleted: true);
-    _applyAdvance(next);
-  }
-
-  Future<void> completeProfile() async {
-    final next = state.status.copyWith(profileCompleted: true, onboardingStep: 8);
+  /// Marks both the emergency contact and profile steps complete in one shot.
+  /// The combined setup screen has already saved the data locally and kicked
+  /// off background server syncs, so we advance to the welcome screen instantly
+  /// and persist the onboarding flags in the background — this can never hang.
+  Future<void> completeSetup() async {
+    final next = state.status.copyWith(
+      emergencyContactCompleted: true,
+      profileCompleted: true,
+      onboardingStep: 8,
+    );
     state = state.copyWith(
       phase: OnboardingPhase.complete,
       status: next,
       showCompletion: true,
     );
-    // Persist in the background so the welcome screen shows instantly.
     unawaited(_service.saveStatus(next).then((saved) {
       state = state.copyWith(status: saved);
     }).catchError((_) {}));

@@ -8,8 +8,7 @@ import '../widgets/healthcare/premium_healthcare_theme.dart';
 import 'onboarding_tour_steps.dart';
 import 'providers/onboarding_provider.dart';
 import 'widgets/onboarding_complete_step.dart';
-import 'widgets/onboarding_emergency_step.dart';
-import 'widgets/onboarding_profile_step.dart';
+import 'widgets/onboarding_setup_step.dart';
 import 'widgets/onboarding_shell.dart';
 import 'widgets/onboarding_spotlight.dart';
 
@@ -107,11 +106,8 @@ class _OnboardingManagerState extends ConsumerState<OnboardingManager> {
       );
     }
 
-    if (ob.phase == OnboardingPhase.emergency) {
-      return _blockingScreen(const OnboardingEmergencyStep());
-    }
-    if (ob.phase == OnboardingPhase.profile) {
-      return _blockingScreen(const OnboardingProfileStep());
+    if (ob.phase == OnboardingPhase.setup) {
+      return _blockingScreen(const OnboardingSetupStep());
     }
     if (ob.phase == OnboardingPhase.complete || ob.showCompletion) {
       return _blockingScreen(const OnboardingCompleteStep());
