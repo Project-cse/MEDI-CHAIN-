@@ -46,6 +46,11 @@ android {
                 storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
                 storePassword = keystoreProperties["storePassword"] as String
             }
+            // Enable all signature schemes so the APK installs reliably across
+            // every device, including older/OEM-modified Android that prefers v1.
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
