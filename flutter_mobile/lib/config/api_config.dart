@@ -60,6 +60,8 @@ class ApiConfig {
   static const String userProfile = '/api/user/get-profile';
   static const String userPatchProfile = '/api/user/profile';
   static const String userOnboarding = '/api/user/onboarding';
+  static const String userSendEmailVerification = '/api/user/email/send-verification';
+  static const String userVerifyEmail = '/api/user/email/verify';
   static const String userUpdateProfile = '/api/user/update-profile';
   static const String userEmergencyContacts = '/api/user/emergency-contacts';
   static const String userEmergencyContactAdd = '/api/user/emergency-contacts/add';

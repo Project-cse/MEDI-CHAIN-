@@ -10,6 +10,7 @@ class PatientModel {
   final String? address;
   final String? emergencyContact;
   final String? profilePicUrl;
+  final bool emailVerified;
 
   const PatientModel({
     required this.id,
@@ -23,6 +24,7 @@ class PatientModel {
     this.address,
     this.emergencyContact,
     this.profilePicUrl,
+    this.emailVerified = false,
   });
 
   factory PatientModel.fromJson(Map<String, dynamic> json) {
@@ -38,6 +40,7 @@ class PatientModel {
       address: formatAddress(json['address']),
       emergencyContact: json['emergencyContact']?.toString(),
       profilePicUrl: json['image']?.toString() ?? json['profile_pic_url']?.toString(),
+      emailVerified: json['emailVerified'] == true || json['email_verified'] == true,
     );
   }
 
@@ -86,10 +89,11 @@ class PatientModel {
     String? address,
     String? emergencyContact,
     String? profilePicUrl,
+    bool? emailVerified,
   }) {
     return PatientModel(
       id: id,
-      publicId: publicId,
+      publicId: publicId ?? this.publicId,
       name: name ?? this.name,
       email: email,
       phone: phone ?? this.phone,
@@ -99,6 +103,7 @@ class PatientModel {
       address: address ?? this.address,
       emergencyContact: emergencyContact ?? this.emergencyContact,
       profilePicUrl: profilePicUrl ?? this.profilePicUrl,
+      emailVerified: emailVerified ?? this.emailVerified,
     );
   }
 }

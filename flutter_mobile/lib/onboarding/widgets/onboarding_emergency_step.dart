@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -69,53 +71,23 @@ class _OnboardingEmergencyStepState extends ConsumerState<OnboardingEmergencySte
     setState(() => _saving = true);
     final service = ref.read(onboardingServiceProvider);
 
-    // The contact must be persisted on the server before we move on. The
-    // backend de-duplicates by phone, so a retry can't create a second row.
-    bool saved = false;
+    // Save locally first so the contact is never lost (works offline), then
+    // advance the UI instantly. The server save runs in the background and the
+    // backend de-duplicates by phone, so a retry can't create a duplicate.
     try {
-      await service
+      await ref.read(emergencySettingsProvider.notifier).upsertPrimaryContact(contact);
+    } catch (_) {}
+
+    unawaited(
+      service
           .addEmergencyContact(
             name: contact.name,
             phone: contact.phone,
             relation: contact.relation ?? '',
           )
-          .timeout(const Duration(seconds: 25));
-      saved = true;
-    } catch (_) {
-      // A cold/slow backend can make the request time out on the client even
-      // though the server actually saved it. Verify before declaring failure
-      // so we don't bounce the user back on a save that really succeeded.
-      try {
-        saved = await service.hasEmergencyContacts().timeout(const Duration(seconds: 10));
-      } catch (_) {
-        saved = false;
-      }
-    }
+          .catchError((_) {}),
+    );
 
-    if (!mounted) return;
-
-    if (!saved) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: const Color(0xFFB91C1C),
-            content: Text(
-              context.l10n.onboardingEmergencySaveFailed,
-              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-          ),
-        );
-      return;
-    }
-
-    // Mirror locally (non-fatal) and advance — never let a local-storage hiccup
-    // block the flow once the server has the contact.
-    try {
-      await ref.read(emergencySettingsProvider.notifier).upsertPrimaryContact(contact);
-    } catch (_) {}
     if (!mounted) return;
     await ref.read(onboardingProvider.notifier).completeEmergencyContact();
     if (mounted) setState(() => _saving = false);

@@ -29,6 +29,8 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
   bool _saving = false;
   bool _ready = false;
   String? _error;
+  bool _emailVerified = false;
+  bool _sendingEmailOtp = false;
 
   static final _inputBorder = OutlineInputBorder(borderRadius: BorderRadius.circular(12));
   static const _menuMaxHeight = 220.0;
@@ -46,6 +48,7 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
     final name = (p?.name.trim().isNotEmpty == true ? p!.name : authUser?.name) ?? '';
     _name.text = name;
     _email.text = p?.email ?? authUser?.email ?? '';
+    _emailVerified = p?.emailVerified ?? _emailVerified;
     _phone.text = ProfileOptions.sanitize(p?.phone) ?? ProfileOptions.sanitize(authUser?.phone) ?? '';
     _gender = ProfileOptions.normalizeGender(p?.gender);
     _bloodGroup = ProfileOptions.normalizeBloodGroup(p?.bloodGroup);
@@ -110,6 +113,10 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
         _bloodGroup == null ||
         _dob == null) {
       setState(() => _error = l10n.commonError);
+      return;
+    }
+    if (!_emailVerified) {
+      setState(() => _error = 'Please verify your email to continue');
       return;
     }
 
@@ -210,7 +217,7 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
           const SizedBox(height: 20),
           _field('${l10n.authFullName} *', _name),
           const SizedBox(height: 12),
-          _field(l10n.authEmail, _email, readOnly: true),
+          _emailField(),
           const SizedBox(height: 12),
           _field('${l10n.authPhone} *', _phone, keyboard: TextInputType.phone),
           const SizedBox(height: 12),
@@ -253,6 +260,162 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _emailField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _field(context.l10n.authEmail, _email, readOnly: true)),
+            const SizedBox(width: 10),
+            if (_emailVerified)
+              const _VerifiedChip()
+            else
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _sendingEmailOtp ? null : _sendEmailOtp,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: PremiumHealthcareTheme.primaryBlue,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _sendingEmailOtp
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text('Verify', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+                ),
+              ),
+          ],
+        ),
+        if (!_emailVerified)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 2),
+            child: Text(
+              'We\'ll email you a 6-digit code to confirm your address.',
+              style: GoogleFonts.inter(fontSize: 12, color: PremiumHealthcareTheme.textSecondary(context)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _sendEmailOtp() async {
+    setState(() {
+      _sendingEmailOtp = true;
+      _error = null;
+    });
+    String? devOtp;
+    try {
+      devOtp = await ref.read(onboardingServiceProvider).sendEmailVerification();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      return;
+    } finally {
+      if (mounted) setState(() => _sendingEmailOtp = false);
+    }
+    if (!mounted) return;
+    final verified = await _promptEmailOtp(devOtp: devOtp);
+    if (verified == true && mounted) {
+      setState(() {
+        _emailVerified = true;
+        _error = null;
+      });
+    }
+  }
+
+  Future<bool?> _promptEmailOtp({String? devOtp}) {
+    final controller = TextEditingController(text: devOtp ?? '');
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: PremiumHealthcareTheme.white(context),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetCtx) {
+        bool verifying = false;
+        String? error;
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheet) {
+            Future<void> submit() async {
+              final code = controller.text.trim();
+              if (code.length < 6) {
+                setSheet(() => error = 'Enter the 6-digit code');
+                return;
+              }
+              setSheet(() {
+                verifying = true;
+                error = null;
+              });
+              try {
+                await ref.read(onboardingServiceProvider).verifyEmail(code);
+                if (sheetCtx.mounted) Navigator.of(sheetCtx).pop(true);
+              } catch (e) {
+                setSheet(() {
+                  verifying = false;
+                  error = e.toString().replaceFirst('Exception: ', '');
+                });
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Verify your email', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18, color: PremiumHealthcareTheme.text(sheetCtx))),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Enter the 6-digit code sent to ${_email.text}',
+                    style: GoogleFonts.inter(fontSize: 13, color: PremiumHealthcareTheme.textSecondary(sheetCtx)),
+                  ),
+                  const SizedBox(height: 18),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    autofocus: true,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(fontSize: 20, letterSpacing: 8, fontWeight: FontWeight.w700, color: PremiumHealthcareTheme.text(sheetCtx)),
+                    decoration: InputDecoration(
+                      counterText: '',
+                      hintText: '------',
+                      errorText: error,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onSubmitted: (_) => submit(),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: verifying ? null : submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: PremiumHealthcareTheme.primaryBlue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: verifying
+                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+                          : Text('Verify', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -324,6 +487,34 @@ class _OnboardingProfileStepState extends ConsumerState<OnboardingProfileStep> {
             color: _dob == null ? PremiumHealthcareTheme.textSecondary(context) : PremiumHealthcareTheme.text(context),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _VerifiedChip extends StatelessWidget {
+  const _VerifiedChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDCFCE7),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFBBF7D0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.verified_rounded, color: Color(0xFF16A34A), size: 18),
+          const SizedBox(width: 6),
+          Text(
+            'Verified',
+            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF16A34A)),
+          ),
+        ],
       ),
     );
   }

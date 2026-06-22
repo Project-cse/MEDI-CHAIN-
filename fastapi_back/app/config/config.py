@@ -128,6 +128,11 @@ class Config:
     FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "")
     FIREBASE_SENDER_ID = os.getenv("FIREBASE_SENDER_ID", "")
 
+    # Firebase phone verification — project id is the audience of the phone ID token.
+    FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "mediclues-e39db")
+    # When True, signup is rejected unless a valid Firebase phone ID token is sent.
+    PHONE_VERIFICATION_REQUIRED = _env_bool("PHONE_VERIFICATION_REQUIRED", default=False)
+
 
 settings = Config()
 

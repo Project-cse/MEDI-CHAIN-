@@ -208,16 +208,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     final c = _video;
     if (c == null || !c.value.isInitialized) {
+      // Branded loading while the video decodes — avoids a blank/white flash.
       return const ColoredBox(
         color: MedcluesPalette.splashCanvas,
         child: Center(
-          child: SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: MedcluesPalette.medicalTeal,
-            ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              MedcluesLogoImage(size: MedcluesLogoSize.auth, useHero: true),
+              SizedBox(height: 28),
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: MedcluesPalette.medicalTeal,
+                ),
+              ),
+            ],
           ),
         ),
       );

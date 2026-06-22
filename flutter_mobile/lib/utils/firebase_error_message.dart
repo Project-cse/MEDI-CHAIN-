@@ -71,7 +71,20 @@ String _mapAuthCode(FirebaseAuthException e) {
       return 'Popup was blocked. Allow popups for this site.';
     case 'user-disabled':
       return 'This account has been disabled.';
+    case 'invalid-verification-code':
+      return 'Incorrect code. Please check the SMS and try again.';
+    case 'invalid-verification-id':
+    case 'session-expired':
+      return 'The code expired. Please request a new one.';
+    case 'invalid-phone-number':
+      return 'Enter a valid phone number.';
+    case 'too-many-requests':
+    case 'quota-exceeded':
+      return 'Too many attempts. Please try again later.';
+    case 'missing-client-identifier':
+    case 'app-not-authorized':
+      return 'Phone verification setup error. Add the app SHA-1/SHA-256 in Firebase Console.';
     default:
-      return e.message ?? 'Google sign-in failed';
+      return e.message ?? 'Verification failed';
   }
 }

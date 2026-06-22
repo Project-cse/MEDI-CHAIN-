@@ -51,6 +51,7 @@ class AuthRepository {
     required String password,
     String? gender,
     String? dob,
+    String? phoneIdToken,
   }) async {
     final tokens = await _auth.signup(
       name: name,
@@ -59,6 +60,7 @@ class AuthRepository {
       password: password,
       gender: gender,
       dob: dob,
+      phoneIdToken: phoneIdToken,
     );
     await _persistTokens(tokens);
     return _auth.fetchProfile();
@@ -67,12 +69,20 @@ class AuthRepository {
   Future<({UserModel user, bool isNewUser})> loginWithGoogle() async {
     final firebaseUser = await _googleAuth.signInWithGoogle();
     final email = firebaseUser.email!;
+    // Firebase ID token lets the backend verify this sign-in server-side.
+    String? idToken;
+    try {
+      idToken = await firebaseUser.getIdToken();
+    } catch (_) {
+      idToken = null;
+    }
     final tokens = await _auth.socialLogin(
       email: email,
       name: firebaseUser.displayName ?? email.split('@').first,
       photoURL: firebaseUser.photoURL,
       provider: 'google',
       uid: firebaseUser.uid,
+      idToken: idToken,
     );
     await _persistTokens(tokens);
     UserModel user;

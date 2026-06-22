@@ -64,6 +64,12 @@ class TelegramApi:
         data = await self._post("getUpdates", payload)
         return data.get("result", [])
 
+    async def delete_webhook(self, drop_pending_updates: bool = False) -> Dict[str, Any]:
+        """Clear any webhook so long-polling (getUpdates) doesn't conflict."""
+        return await self._post(
+            "deleteWebhook", {"drop_pending_updates": drop_pending_updates}
+        )
+
     async def _post(self, method: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
             res = await client.post(f"{self._base}/{method}", json=payload)

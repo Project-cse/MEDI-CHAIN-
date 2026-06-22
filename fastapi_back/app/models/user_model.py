@@ -49,8 +49,8 @@ async def create_user(user_data: Dict[str, Any]):
     sql = """
         INSERT INTO users (
             name, email, password, image, phone, address_line1, address_line2,
-            gender, dob, age, blood_group, role, public_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            gender, dob, age, blood_group, role, public_id, phone_verified, email_verified
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING *
     """
     values = (
@@ -67,8 +67,20 @@ async def create_user(user_data: Dict[str, Any]):
         user_data.get('bloodGroup', ''),
         user_data.get('role', 'patient'),
         public_id,
+        bool(user_data.get('phone_verified', False)),
+        bool(user_data.get('email_verified', False)),
     )
     return await db.fetch_row(sql, *values)
+
+
+async def set_email_verified(user_id: int, verified: bool = True):
+    sql = """
+        UPDATE users
+        SET email_verified = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        RETURNING *
+    """
+    return await db.fetch_row(sql, bool(verified), user_id)
 
 async def update_user(user_id: int, user_data: Dict[str, Any]):
     fields = []

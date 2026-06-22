@@ -104,6 +104,24 @@ class OnboardingService {
     assertSuccess(res.data ?? {}, 'Failed to save emergency contact');
   }
 
+  /// Sends a 6-digit verification code to the user's email.
+  /// Returns a dev OTP string when the backend is in debug mode and email
+  /// delivery failed (null otherwise).
+  Future<String?> sendEmailVerification() async {
+    final res = await _api.post<Map<String, dynamic>>(ApiConfig.userSendEmailVerification);
+    final data = res.data ?? {};
+    assertSuccess(data, 'Failed to send verification code');
+    return data['dev_otp']?.toString();
+  }
+
+  Future<void> verifyEmail(String otp) async {
+    final res = await _api.post<Map<String, dynamic>>(
+      ApiConfig.userVerifyEmail,
+      data: {'otp': otp.trim()},
+    );
+    assertSuccess(res.data ?? {}, 'Invalid code');
+  }
+
   Future<PatientModel> updateProfile(PatientModel patient) async {
     final res = await _api.patch<Map<String, dynamic>>(
       ApiConfig.userPatchProfile,

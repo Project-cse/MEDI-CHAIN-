@@ -17,7 +17,11 @@ from app.config.db import db
 from app.services.oauth_verification import (
     OAuthVerificationError,
     extract_id_token_from_body,
+    extract_phone_id_token_from_body,
+    phone_numbers_match,
     verify_google_id_token,
+    verify_firebase_token,
+    verify_firebase_phone_token,
 )
 from app.utils.app_logger import get_logger
 
@@ -68,6 +72,22 @@ async def register_user(req_body: dict):
         if existing_user:
             return {"success": False, "message": "User already exists"}
 
+        # --- Phone verification (Firebase phone OTP) ---
+        phone_verified = False
+        phone_token = extract_phone_id_token_from_body(req_body)
+        if phone_token:
+            try:
+                claims = verify_firebase_phone_token(phone_token)
+            except OAuthVerificationError as phone_err:
+                return {"success": False, "message": str(phone_err)}
+            if phone and not phone_numbers_match(claims.get("phone_number", ""), phone):
+                return {"success": False, "message": "Verified phone number does not match the number entered"}
+            # Trust the number proven by the OTP token.
+            phone = claims.get("phone_number") or phone
+            phone_verified = True
+        elif settings.PHONE_VERIFICATION_REQUIRED:
+            return {"success": False, "message": "Phone verification required. Please verify your mobile number."}
+
         hashed_password = get_password_hash(password)
 
         user_data = {
@@ -75,6 +95,7 @@ async def register_user(req_body: dict):
             "email": email,
             "password": hashed_password,
             "phone": phone,
+            "phone_verified": phone_verified,
             "role": 'patient'
         }
 
@@ -137,14 +158,25 @@ async def social_login(req_body: dict):
         provider = (req_body.get('provider') or 'google').strip().lower()
         uid = req_body.get('uid')
 
+        social_email_verified = False
         id_token_raw = extract_id_token_from_body(req_body)
         if id_token_raw and provider in ('google', 'firebase'):
             try:
-                claims = verify_google_id_token(id_token_raw)
-                email = claims.get('email') or email
+                # App sends a Firebase ID token (works on web + mobile). Fall back
+                # to a raw Google OAuth token for older clients / other flows.
+                try:
+                    claims = verify_firebase_token(id_token_raw)
+                except OAuthVerificationError:
+                    claims = verify_google_id_token(id_token_raw)
+                token_email = claims.get('email')
+                if token_email and claims.get('email_verified') is False:
+                    return {"success": False, "message": "Email not verified by provider"}
+                email = token_email or email
                 name = claims.get('name') or name or (email.split('@')[0] if email else '')
                 photo_url = claims.get('picture') or photo_url
-                uid = claims.get('sub') or uid
+                uid = claims.get('uid') or claims.get('sub') or uid
+                # Provider already verified this email — skip the OTP step.
+                social_email_verified = bool(token_email)
             except OAuthVerificationError as oauth_err:
                 return {"success": False, "message": str(oauth_err)}
         elif not settings.SOCIAL_LOGIN_ALLOW_LEGACY:
@@ -175,7 +207,8 @@ async def social_login(req_body: dict):
                 "email": email,
                 "password": hashed_password,
                 "image": photo_url,
-                "role": 'patient'
+                "role": 'patient',
+                "email_verified": social_email_verified,
             }
             user = await user_model.create_user(user_data)
             
@@ -191,6 +224,12 @@ async def social_login(req_body: dict):
                     await user_model.update_user(user['id'], {"image": photo_url})
                 except Exception as img_err:
                     print(f"[WARNING] Failed to update user image: {img_err}")
+            # Provider-verified email — mark verified so they skip the OTP step.
+            if social_email_verified and not user.get('email_verified'):
+                try:
+                    await user_model.set_email_verified(user['id'], True)
+                except Exception as ev_err:
+                    print(f"[WARNING] Failed to set email_verified: {ev_err}")
 
         auth_response = await token_service.issue_token_pair("patient", user_id=user['id'])
         auth_response["isNewUser"] = is_new_user
@@ -199,6 +238,63 @@ async def social_login(req_body: dict):
 
     except Exception as e:
         print(f"[ERROR] Social Login Error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+# Namespace for email-verification OTPs (kept separate from password reset).
+EMAIL_VERIFY_NS = "email_verify"
+
+
+async def send_email_verification(user_id: int):
+    """Send a 6-digit OTP to the logged-in user's email to verify it."""
+    try:
+        from app.utils import password_reset_storage
+
+        user = await user_model.get_user_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "User not found"}
+        email = (user.get('email') or '').strip().lower()
+        if not email:
+            return {"success": False, "message": "No email on file"}
+        if user.get('email_verified'):
+            return {"success": True, "message": "Email already verified", "alreadyVerified": True}
+
+        otp = password_reset_storage.generate_otp()
+        password_reset_storage.store_otp(EMAIL_VERIFY_NS, email, otp)
+        result = await email_service.send_email_verification_otp(email, otp, user.get('name') or 'User')
+        if result.get('success'):
+            return {"success": True, "message": "Verification code sent to your email"}
+        if settings.DEBUG:
+            return {"success": True, "message": "OTP generated (email delivery failed — dev)", "dev_otp": otp}
+        return {"success": False, "message": result.get('message') or "Failed to send verification email"}
+    except Exception as e:
+        print(f"[ERROR] Send Email Verification Error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+async def verify_email(user_id: int, otp: str):
+    """Verify the OTP and mark the user's email as verified."""
+    try:
+        import re
+        from app.utils import password_reset_storage
+
+        user = await user_model.get_user_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "User not found"}
+        if user.get('email_verified'):
+            return {"success": True, "message": "Email already verified"}
+        email = (user.get('email') or '').strip().lower()
+        if not otp or not re.match(r"^\d{6}$", str(otp)):
+            return {"success": False, "message": "Please enter a valid 6-digit code"}
+
+        result = password_reset_storage.verify_otp(EMAIL_VERIFY_NS, email, str(otp), consume=True)
+        if not result.get('success'):
+            return {"success": False, "message": result.get('message', 'Invalid code')}
+
+        updated = await user_model.set_email_verified(user_id, True)
+        return {"success": True, "message": "Email verified", "userData": format_user(updated)}
+    except Exception as e:
+        print(f"[ERROR] Verify Email Error: {e}")
         return {"success": False, "message": str(e)}
 
 # API to get user profile

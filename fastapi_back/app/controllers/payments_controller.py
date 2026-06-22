@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
@@ -108,7 +109,8 @@ async def create_order(amount_inr: float, currency: str = "INR", receipt: str | 
         if receipt:
             order_data["receipt"] = receipt
 
-        order = razorpay_client.order.create(data=order_data)
+        # Razorpay SDK is blocking (uses requests) — run off the event loop.
+        order = await asyncio.to_thread(razorpay_client.order.create, data=order_data)
         order_id = order.get("id")
         checkout_token = uuid.uuid4().hex
         await pt_model.create_pending(
@@ -152,7 +154,8 @@ async def create_appointment_order(user_id: int, body: dict):
         receipt = f"mc_{user_id}_{uuid.uuid4().hex[:10]}"
         symptoms = _normalize_symptoms_list(body.get("symptoms"))
         booking_notes = str(body.get("notes") or "")[:200]
-        order = razorpay_client.order.create(
+        order = await asyncio.to_thread(
+            razorpay_client.order.create,
             data={
                 "amount": amount_paise,
                 "currency": body.get("currency", "INR"),
@@ -170,7 +173,7 @@ async def create_appointment_order(user_id: int, body: dict):
                     "booking_notes": booking_notes,
                     "symptoms": json.dumps(symptoms)[:500],
                 },
-            }
+            },
         )
         order_id = order.get("id")
         appointment_id = f"pending_{order_id}"
@@ -222,7 +225,7 @@ async def _resolve_pending_order(order_id: str) -> dict | None:
 
     try:
         _require_client()
-        order = razorpay_client.order.fetch(order_id)
+        order = await asyncio.to_thread(razorpay_client.order.fetch, order_id)
         notes = order.get("notes") or {}
         user_id = int(notes.get("user_id") or 0)
         doctor_id = notes.get("doctor_id")
@@ -417,8 +420,10 @@ async def get_order_status(user_id: int, order_id: str):
 
     try:
         _require_client()
-        order = razorpay_client.order.fetch(order_id)
-        payments_res = razorpay_client.order.payments(order_id)
+        order, payments_res = await asyncio.gather(
+            asyncio.to_thread(razorpay_client.order.fetch, order_id),
+            asyncio.to_thread(razorpay_client.order.payments, order_id),
+        )
         items = payments_res.get("items") or []
         captured = next((p for p in items if p.get("status") == "captured"), None)
         failed = next((p for p in items if p.get("status") == "failed"), None)

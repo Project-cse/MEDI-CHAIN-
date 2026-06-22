@@ -149,6 +149,12 @@ async def send_otp_email(email: str, otp: str):
     return await send_email(email, subject, html_content)
 
 
+async def send_email_verification_otp(email: str, otp: str, user_name: str = "User"):
+    subject = "Verify your email — MEDCLUES"
+    html_content = tpl.otp_verification(otp, purpose="email verification")
+    return await send_email(email, subject, html_content, user_name)
+
+
 async def send_welcome_email(email: str, name: str):
     subject = "Welcome to MEDCLUES — Registration Successful"
     html_content = tpl.registration_success(name, email, _app_login_url("/login"))

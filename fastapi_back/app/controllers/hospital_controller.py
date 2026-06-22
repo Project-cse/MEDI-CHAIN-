@@ -41,7 +41,27 @@ def format_hospital(h):
 
 async def hospital_list():
     try:
-        hospitals = await hospital_model.get_all_hospital_tieups()
+        import asyncio
+        from collections import defaultdict
+
+        # Fetch everything in parallel (avoids N+1 queries per hospital).
+        hospitals, all_doctors, all_embedded_docs = await asyncio.gather(
+            hospital_model.get_all_hospital_tieups(),
+            doctor_model.get_all_doctors(),
+            hospital_model.get_all_hospital_tieup_doctors_with_hospitals(),
+        )
+
+        # Count doctors per hospital in memory.
+        doc_count = defaultdict(int)
+        for doc in all_doctors:
+            h_id = doc.get('hospital_id')
+            if h_id is not None:
+                doc_count[int(h_id)] += 1
+        for d in all_embedded_docs:
+            h_id = d.get('hospital_tieup_id')
+            if h_id is not None:
+                doc_count[int(h_id)] += 1
+
         formatted = []
         for h in hospitals:
             entry = format_hospital(h)
@@ -49,9 +69,7 @@ async def hospital_list():
                 continue
             hospital_id = entry.get('id')
             if hospital_id is not None:
-                assigned_docs = await doctor_model.get_doctors_by_hospital_id(int(hospital_id))
-                embedded_docs = await hospital_model.get_hospital_tieup_doctors(int(hospital_id))
-                entry['doctorCount'] = len(assigned_docs) + len(embedded_docs)
+                entry['doctorCount'] = doc_count.get(int(hospital_id), 0)
             formatted.append(entry)
         formatted.sort(key=lambda x: (0 if x['hospitalType'] == 'MAIN' else 1, x['name']))
         return {"success": True, "hospitals": formatted}
@@ -66,16 +84,18 @@ async def get_hospital_tieup_details(hospital_id: int):
             return {"success": False, "message": "Hospital not found"}
         
         h_dict = dict(hospital)
-            
-        # Get doctors assigned to this hospital (regular docs)
-        assigned_docs = await doctor_model.get_doctors_by_hospital_id(hospital_id)
+
+        # Fetch both doctor sets in parallel (regular + embedded roster).
+        import asyncio
+        assigned_docs, embedded_docs = await asyncio.gather(
+            doctor_model.get_doctors_by_hospital_id(hospital_id),
+            hospital_model.get_hospital_tieup_doctors(hospital_id),
+        )
         real_doctors = [format_doctor(doc) for doc in assigned_docs]
-        
+
         # Track names to prevent duplicates
         seen_names = {d['name'].lower().strip() for d in real_doctors}
-        
-        # Get embedded doctors (hospital-specific roster)
-        embedded_docs = await hospital_model.get_hospital_tieup_doctors(hospital_id)
+
         for doc in embedded_docs:
             d_dict = dict(doc)
             name_key = d_dict['name'].lower().strip()

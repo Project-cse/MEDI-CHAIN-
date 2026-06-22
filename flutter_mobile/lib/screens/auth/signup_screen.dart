@@ -9,6 +9,7 @@ import '../../constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../routes/route_names.dart';
 import '../../services/google_auth_service.dart';
+import '../../services/phone_auth_service.dart';
 import '../../utils/app_exception.dart';
 import '../../utils/validators.dart';
 import '../../widgets/animations/healthcare_motion.dart';
@@ -50,8 +51,32 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   bool _showSuccess = false;
   bool _shakeFields = false;
 
+  final _phoneAuth = PhoneAuthService();
+  bool _phoneVerified = false;
+  bool _sendingOtp = false;
+  String? _phoneIdToken;
+  String? _verifiedPhone;
+
+  @override
+  void initState() {
+    super.initState();
+    _phone.addListener(_onPhoneChanged);
+  }
+
+  /// Editing the phone after verifying invalidates the proof.
+  void _onPhoneChanged() {
+    if (_phoneVerified && _phone.text.trim() != _verifiedPhone) {
+      setState(() {
+        _phoneVerified = false;
+        _phoneIdToken = null;
+        _verifiedPhone = null;
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _phone.removeListener(_onPhoneChanged);
     _name.dispose();
     _email.dispose();
     _phone.dispose();
@@ -97,6 +122,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           AppSnackbar.show(context, phoneError ?? l10n.validationPhoneInvalid);
           return false;
         }
+        // Phone OTP verification is optional — users may verify now or later.
         return true;
       case 2:
         if (Validators.password(_password.text, l10n) != null) {
@@ -144,6 +170,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             password: _password.text,
             gender: _gender == null ? null : LocalizedFormOptions.genderToStorage(_gender!, context.l10n),
             dob: _dob != null ? DateFormat('yyyy-MM-dd').format(_dob!) : null,
+            phoneIdToken: _phoneIdToken,
           );
       final state = ref.read(authProvider);
       if (!mounted) return;
@@ -179,6 +206,143 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     } finally {
       if (mounted) setState(() => _googleLoading = false);
     }
+  }
+
+  Future<void> _verifyPhone() async {
+    final l10n = context.l10n;
+    final phoneError = Validators.phone(_phone.text, l10n);
+    if (phoneError != null) {
+      AppSnackbar.show(context, phoneError);
+      return;
+    }
+    setState(() => _sendingOtp = true);
+    try {
+      String? autoToken;
+      final verificationId = await _phoneAuth.sendOtp(
+        _phone.text,
+        onAutoVerified: (token) => autoToken = token,
+      );
+      if (!mounted) return;
+      if (autoToken != null) {
+        _markVerified(autoToken!);
+        return;
+      }
+      final token = await _promptOtpAndConfirm(verificationId);
+      if (token != null && mounted) _markVerified(token);
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackbar.show(context, e is AppException ? e.message : e.toString());
+    } finally {
+      if (mounted) setState(() => _sendingOtp = false);
+    }
+  }
+
+  void _markVerified(String token) {
+    setState(() {
+      _phoneVerified = true;
+      _phoneIdToken = token;
+      _verifiedPhone = _phone.text.trim();
+    });
+    AppSnackbar.show(context, 'Phone number verified');
+  }
+
+  Future<String?> _promptOtpAndConfirm(String verificationId) {
+    final controller = TextEditingController();
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        bool verifying = false;
+        String? error;
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheet) {
+            Future<void> submit() async {
+              final code = controller.text.trim();
+              if (code.length < 6) {
+                setSheet(() => error = 'Enter the 6-digit code');
+                return;
+              }
+              setSheet(() {
+                verifying = true;
+                error = null;
+              });
+              try {
+                final token = await _phoneAuth.confirmOtp(verificationId, code);
+                if (sheetCtx.mounted) Navigator.of(sheetCtx).pop(token);
+              } catch (e) {
+                setSheet(() {
+                  verifying = false;
+                  error = e is AppException ? e.message : e.toString();
+                });
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Verify your phone',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 18),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Enter the 6-digit code sent to ${PhoneAuthService.formatPhone(_phone.text)}',
+                    style: GoogleFonts.inter(fontSize: 13, color: PremiumLoginTheme.textSecondary),
+                  ),
+                  const SizedBox(height: 18),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    autofocus: true,
+                    style: GoogleFonts.inter(fontSize: 20, letterSpacing: 8, fontWeight: FontWeight.w700),
+                    textAlign: TextAlign.center,
+                    decoration: InputDecoration(
+                      counterText: '',
+                      hintText: '------',
+                      errorText: error,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onSubmitted: (_) => submit(),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: verifying ? null : submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: PremiumLoginTheme.accentBlue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: verifying
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                            )
+                          : Text('Verify', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -451,7 +615,51 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           hintText: l10n.authEnterPhoneHint,
           autofillHints: const [AutofillHints.telephoneNumber],
         ),
+        if (PhoneAuthService.isSupportedPlatform) _phoneVerifyRow(),
       ],
+    );
+  }
+
+  Widget _phoneVerifyRow() {
+    if (_phoneVerified) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Row(
+          children: [
+            const Icon(Icons.verified_rounded, color: Color(0xFF16A34A), size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Phone verified',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF16A34A),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: _sendingOtp ? null : _verifyPhone,
+          icon: _sendingOtp
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.sms_outlined, size: 18),
+          label: Text(
+            _sendingOtp ? 'Sending code…' : 'Verify phone via OTP',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          ),
+          style: TextButton.styleFrom(foregroundColor: PremiumLoginTheme.accentBlue),
+        ),
+      ),
     );
   }
 

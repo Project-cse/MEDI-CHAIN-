@@ -66,6 +66,17 @@ async def patch_onboarding(req: Request, user_id: int = Depends(auth_user)):
     return await user_controller.patch_onboarding(user_id, body)
 
 
+@router.post("/email/send-verification")
+async def send_email_verification(user_id: int = Depends(auth_user)):
+    return await user_controller.send_email_verification(user_id)
+
+
+@router.post("/email/verify")
+async def verify_email(req: Request, user_id: int = Depends(auth_user)):
+    body = await req.json()
+    return await user_controller.verify_email(user_id, str(body.get("otp", "")))
+
+
 @router.post("/update-profile")
 async def update_profile(
     name: Optional[str] = Form(None),

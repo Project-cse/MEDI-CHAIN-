@@ -67,3 +67,63 @@ def extract_id_token_from_body(body: dict) -> Optional[str]:
         if isinstance(val, str) and val.strip():
             return val.strip()
     return None
+
+
+def extract_phone_id_token_from_body(body: dict) -> Optional[str]:
+    for key in ("phoneIdToken", "phone_id_token", "phoneToken"):
+        val = body.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    return None
+
+
+def _normalize_phone(value: str) -> str:
+    """Keep only digits; compare on the last 10 (national) digits."""
+    digits = "".join(ch for ch in (value or "") if ch.isdigit())
+    return digits[-10:] if len(digits) >= 10 else digits
+
+
+def verify_firebase_token(raw_token: str) -> dict[str, Any]:
+    """
+    Verify a Firebase ID token (issued by Firebase Auth — phone, Google, etc.).
+
+    Uses the Firebase project id as the audience and the public Firebase signing
+    certs, so it does NOT require the Firebase Admin service account.
+    """
+    token = (raw_token or "").strip()
+    if not token:
+        raise OAuthVerificationError("Missing ID token")
+
+    project_id = (settings.FIREBASE_PROJECT_ID or "").strip()
+    if not project_id:
+        raise OAuthVerificationError("Firebase project id not configured on server")
+
+    try:
+        info = id_token.verify_firebase_token(
+            token,
+            google_requests.Request(),
+            audience=project_id,
+        )
+    except OAuthVerificationError:
+        raise
+    except Exception as e:  # signature / audience / expiry failures
+        raise OAuthVerificationError("Invalid or expired token") from e
+
+    if info.get("iss", "") != f"https://securetoken.google.com/{project_id}":
+        raise OAuthVerificationError("Invalid token issuer")
+    if info.get("aud") != project_id:
+        raise OAuthVerificationError("Invalid token audience")
+    return info
+
+
+def verify_firebase_phone_token(raw_token: str) -> dict[str, Any]:
+    """Verify a Firebase **phone** ID token (SMS OTP) — requires a phone claim."""
+    info = verify_firebase_token(raw_token)
+    if not info.get("phone_number"):
+        raise OAuthVerificationError("Token missing verified phone number")
+    return info
+
+
+def phone_numbers_match(claim_phone: str, submitted_phone: str) -> bool:
+    """True when the verified token phone matches the phone the user typed."""
+    return _normalize_phone(claim_phone) == _normalize_phone(submitted_phone)

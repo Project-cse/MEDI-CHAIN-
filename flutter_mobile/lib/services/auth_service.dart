@@ -41,6 +41,7 @@ class AuthService {
     required String password,
     String? gender,
     String? dob,
+    String? phoneIdToken,
   }) async {
     final res = await _api.post<Map<String, dynamic>>(
       ApiConfig.userRegister,
@@ -51,6 +52,7 @@ class AuthService {
         'password': password,
         if (gender != null) 'gender': gender,
         if (dob != null) 'dob': dob,
+        if (phoneIdToken != null && phoneIdToken.isNotEmpty) 'phoneIdToken': phoneIdToken,
       },
     );
     return _parseTokens(res.data ?? {}, 'Registration failed');
@@ -94,6 +96,7 @@ class AuthService {
     String? photoURL,
     required String provider,
     required String uid,
+    String? idToken,
   }) async {
     final res = await _api.post<Map<String, dynamic>>(
       ApiConfig.userSocialLogin,
@@ -103,6 +106,7 @@ class AuthService {
         'photoURL': photoURL,
         'provider': provider,
         'uid': uid,
+        if (idToken != null && idToken.isNotEmpty) 'idToken': idToken,
       },
     );
     return _parseTokens(res.data ?? {}, 'Google sign-in failed');
