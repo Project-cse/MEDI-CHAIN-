@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
@@ -12,6 +13,7 @@ import '../../l10n/l10n_extension.dart';
 import '../../models/patient_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/patient_provider.dart';
+import '../../routes/route_names.dart';
 import '../../utils/validators.dart';
 import '../../widgets/healthcare/premium_healthcare_theme.dart';
 import '../providers/onboarding_provider.dart';
@@ -237,9 +239,11 @@ class _OnboardingSetupStepState extends ConsumerState<OnboardingSetupStep> {
       debugPrint('Onboarding profile sync: $e');
     }));
 
-    // Advance to the welcome screen immediately — this can never hang.
-    await ref.read(onboardingProvider.notifier).completeSetup();
-    if (mounted) setState(() => _saving = false);
+    // Finish onboarding and go straight to the home screen. This never blocks
+    // on the network, so "Complete Setup" always lands on the dashboard.
+    await ref.read(onboardingProvider.notifier).finishOnboarding();
+    if (!mounted) return;
+    context.go(RouteNames.dashboard);
   }
 
   Future<void> _sendEmailOtp() async {

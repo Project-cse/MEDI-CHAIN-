@@ -43,6 +43,31 @@ class DoctorModel {
     this.slotsBooked = const {},
   });
 
+  DoctorModel copyWith({String? hospitalName, String? status, bool? available}) {
+    return DoctorModel(
+      id: id,
+      name: name,
+      specialization: specialization,
+      imageUrl: imageUrl,
+      rating: rating,
+      reviewCount: reviewCount,
+      experienceLabel: experienceLabel,
+      experienceYears: experienceYears,
+      consultationFee: consultationFee,
+      videoConsultationFee: videoConsultationFee,
+      available: available ?? this.available,
+      status: status ?? this.status,
+      hospitalName: hospitalName ?? this.hospitalName,
+      address: address,
+      addressLine1: addressLine1,
+      addressLine2: addressLine2,
+      about: about,
+      degree: degree,
+      phone: phone,
+      slotsBooked: slotsBooked,
+    );
+  }
+
   String? get displayRatingText =>
       hasRating ? rating!.toStringAsFixed(1) : null;
 

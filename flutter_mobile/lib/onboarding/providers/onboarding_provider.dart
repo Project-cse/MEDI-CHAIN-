@@ -183,10 +183,21 @@ class OnboardingNotifier extends StateNotifier<OnboardingUiState> {
       profileCompleted: true,
       onboardingStep: 8,
     );
+    // Flip to "done" instantly so the UI advances to the home screen without
+    // ever waiting on the network. Persist in the background with a retry.
     state = OnboardingUiState(phase: OnboardingPhase.done, status: next);
-    try {
-      await _persist(next);
-    } catch (_) {}
+    unawaited(_persistWithRetry(next));
+  }
+
+  Future<void> _persistWithRetry(OnboardingStatus status, {int attempts = 3}) async {
+    for (var i = 0; i < attempts; i++) {
+      try {
+        await _service.saveStatus(status);
+        return;
+      } catch (_) {
+        await Future.delayed(Duration(seconds: 2 * (i + 1)));
+      }
+    }
   }
 
   Future<void> resetForReplay() async {

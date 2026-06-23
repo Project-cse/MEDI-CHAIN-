@@ -140,38 +140,56 @@ async def cancel_with_policy(
 
     paid = bool(appointment.get("payment") or appointment.get("paid_at_booking"))
     refund_row = None
-    if paid:
-        refund_row = await refund_service.create_refund_record(
-            int(appointment_id),
-            user_id,
-            reason=reason,
-        )
-        await appointment_lifecycle_service.transition(
-            int(appointment_id),
-            "REFUND_PENDING",
-            actor_id=user_id,
-            actor_role="patient",
-            reason=reason,
-        )
-    else:
-        await appointment_lifecycle_service.transition(
-            int(appointment_id),
-            "CANCELLED",
-            actor_id=user_id,
-            actor_role="patient",
-            reason=reason,
-        )
-        await appointment_lifecycle_service.transition(
-            int(appointment_id),
-            "CLOSED",
-            actor_id=user_id,
-            actor_role="patient",
-        )
 
+    # Create the refund record for paid bookings, but never let a refund/audit
+    # failure block the actual cancellation — the user's cancel must always work.
     if paid:
-        await trust_score_service.apply_event(user_id, "REFUND_REQUEST")
-    elif is_late:
-        await trust_score_service.apply_event(user_id, "LATE_CANCEL")
+        try:
+            refund_row = await refund_service.create_refund_record(
+                int(appointment_id),
+                user_id,
+                reason=reason,
+            )
+        except Exception as refund_err:
+            print(f"[WARNING] refund record failed, cancelling anyway: {refund_err}")
+            refund_row = None
+
+    target_status = "REFUND_PENDING" if paid else "CANCELLED"
+    try:
+        await appointment_lifecycle_service.transition(
+            int(appointment_id),
+            target_status,
+            actor_id=user_id,
+            actor_role="patient",
+            reason=reason,
+        )
+        if not paid:
+            await appointment_lifecycle_service.transition(
+                int(appointment_id),
+                "CLOSED",
+                actor_id=user_id,
+                actor_role="patient",
+            )
+    except Exception as transition_err:
+        # Hard fallback: force the cancelled flag directly so the booking
+        # always leaves the user's upcoming list.
+        print(f"[WARNING] lifecycle transition failed, forcing cancel: {transition_err}")
+        try:
+            await db.execute(
+                "UPDATE appointments SET cancelled = true, status = 'cancelled' WHERE id = $1",
+                int(appointment_id),
+            )
+        except Exception as force_err:
+            print(f"[ERROR] force-cancel failed: {force_err}")
+            return {"success": False, "message": "Could not cancel appointment"}
+
+    try:
+        if paid:
+            await trust_score_service.apply_event(user_id, "REFUND_REQUEST")
+        elif is_late:
+            await trust_score_service.apply_event(user_id, "LATE_CANCEL")
+    except Exception as trust_err:
+        print(f"[WARNING] trust score update on cancel failed: {trust_err}")
 
     return {
         "success": True,

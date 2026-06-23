@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/emergency/providers/emergency_provider.dart';
 import '../providers/auth_provider.dart';
+import '../routes/route_names.dart';
 import '../widgets/healthcare/premium_healthcare_theme.dart';
 import 'onboarding_tour_steps.dart';
 import 'providers/onboarding_provider.dart';
@@ -50,6 +51,22 @@ class _OnboardingManagerState extends ConsumerState<OnboardingManager> {
     });
   }
 
+  static const _preAppRoutes = {
+    RouteNames.splash,
+    RouteNames.login,
+    RouteNames.signup,
+    RouteNames.forgotPassword,
+    RouteNames.permissionsSetup,
+  };
+
+  bool _isPreAppRoute(BuildContext context) {
+    try {
+      return _preAppRoutes.contains(GoRouterState.of(context).matchedLocation);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Widget _blockingScreen(Widget page) {
     return Stack(
       children: [
@@ -89,6 +106,12 @@ class _OnboardingManagerState extends ConsumerState<OnboardingManager> {
 
     final auth = ref.watch(authProvider);
     if (auth.status != AuthStatus.authenticated) {
+      return widget.child;
+    }
+
+    // Never paint onboarding UI (incl. the loading spinner) over the splash
+    // intro video or the auth screens — nothing should appear during the intro.
+    if (_isPreAppRoute(context)) {
       return widget.child;
     }
 

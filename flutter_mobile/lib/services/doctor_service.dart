@@ -87,18 +87,30 @@ class DoctorService {
   }
 
   Future<DoctorModel> fetchById(String id) async {
-    final cached = _fromCache(id);
-    if (cached != null) return cached;
-
+    // Prefer the detail endpoint first — it returns fully-joined data
+    // (including the hospital name) that the cached list view can be missing.
     try {
       final res = await _api.get<Map<String, dynamic>>(ApiConfig.doctorById(id));
       final data = res.data ?? {};
       assertSuccess(data);
       final doc = data['doctor'] as Map<String, dynamic>?;
-      if (doc != null) return DoctorModel.fromJson(doc);
+      if (doc != null) {
+        final model = DoctorModel.fromJson(doc);
+        // If the detail row somehow lacks a hospital name, backfill from cache.
+        if (model.hospitalName == null || model.hospitalName!.isEmpty) {
+          final cached = _fromCache(id);
+          if (cached?.hospitalName != null && cached!.hospitalName!.isNotEmpty) {
+            return model.copyWith(hospitalName: cached.hospitalName);
+          }
+        }
+        return model;
+      }
     } catch (_) {
-      /* fall through to list lookup */
+      /* fall through to cache / list lookup */
     }
+
+    final cached = _fromCache(id);
+    if (cached != null) return cached;
 
     final all = await fetchAll();
     return all.firstWhere(
