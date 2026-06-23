@@ -147,10 +147,10 @@ class AppointmentModel {
       (lifecycleStatus ?? '').toUpperCase() == 'FOLLOWUP_AVAILABLE';
 
   bool get isOnlineVisit {
+    // Only the visit type decides this — payment method is NOT a proxy
+    // (an in-clinic appointment can still be paid online via Razorpay).
     final v = (visitType ?? '').toLowerCase();
-    if (v.contains('online') || v.contains('video')) return true;
-    final pay = (paymentMethod ?? '').toLowerCase();
-    return pay.contains('razorpay') || pay.contains('online');
+    return v.contains('online') || v.contains('video');
   }
 
   static String? _patientNameFromJson(Map<String, dynamic> json) {

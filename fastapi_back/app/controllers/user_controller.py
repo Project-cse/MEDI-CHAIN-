@@ -57,6 +57,9 @@ async def register_user(req_body: dict):
         email = req_body.get('email')
         password = req_body.get('password')
         phone = req_body.get('phone')
+        gender = req_body.get('gender')
+        dob = req_body.get('dob')
+        blood_group = req_body.get('bloodGroup') or req_body.get('blood_group')
 
         if not name or not password or not email:
             return {"success": False, "message": "Missing Details"}
@@ -98,6 +101,14 @@ async def register_user(req_body: dict):
             "phone_verified": phone_verified,
             "role": 'patient'
         }
+        # Persist the profile details collected during signup so the onboarding
+        # step is pre-filled and the user doesn't re-enter what they typed.
+        if gender:
+            user_data["gender"] = gender
+        if dob:
+            user_data["dob"] = dob
+        if blood_group:
+            user_data["bloodGroup"] = blood_group
 
         new_user = await user_model.create_user(user_data)
         auth_response = await token_service.issue_token_pair("patient", user_id=new_user['id'])

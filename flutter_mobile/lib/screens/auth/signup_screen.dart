@@ -27,6 +27,7 @@ import '../../features/emergency/widgets/emergency_help_button.dart';
 import '../../l10n/l10n_extension.dart';
 import '../../widgets/common/app_snackbar.dart';
 import '../../constants/localized_form_options.dart';
+import '../../constants/profile_options.dart';
 
 /// Multi-step registration wizard — 4 steps with horizontal slide animations.
 class SignupScreen extends ConsumerStatefulWidget {
@@ -43,6 +44,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _password = TextEditingController();
   final _confirm = TextEditingController();
   String? _gender;
+  String? _bloodGroup;
   DateTime? _dob;
   bool _terms = false;
   int _step = 0;
@@ -61,6 +63,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   void initState() {
     super.initState();
     _phone.addListener(_onPhoneChanged);
+    _password.addListener(_onPasswordChanged);
+  }
+
+  /// Rebuild so the live password-requirements checklist updates as the user types.
+  void _onPasswordChanged() {
+    if (mounted) setState(() {});
   }
 
   /// Editing the phone after verifying invalidates the proof.
@@ -77,6 +85,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   @override
   void dispose() {
     _phone.removeListener(_onPhoneChanged);
+    _password.removeListener(_onPasswordChanged);
     _name.dispose();
     _email.dispose();
     _phone.dispose();
@@ -109,6 +118,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         }
         if (_gender == null) {
           AppSnackbar.show(context, l10n.authSelectGenderError);
+          return false;
+        }
+        if (_bloodGroup == null) {
+          AppSnackbar.show(context, 'Please select your blood group');
           return false;
         }
         return true;
@@ -170,6 +183,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             password: _password.text,
             gender: _gender == null ? null : LocalizedFormOptions.genderToStorage(_gender!, context.l10n),
             dob: _dob != null ? DateFormat('yyyy-MM-dd').format(_dob!) : null,
+            bloodGroup: _bloodGroup,
             phoneIdToken: _phoneIdToken,
           );
       final state = ref.read(authProvider);
@@ -588,6 +602,38 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               .toList(),
           onChanged: (v) => setState(() => _gender = v),
         ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          value: _bloodGroup,
+          dropdownColor: PremiumLoginTheme.white,
+          style: GoogleFonts.inter(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            color: PremiumLoginTheme.text,
+          ),
+          decoration: InputDecoration(
+            labelText: 'Blood Group',
+            labelStyle: GoogleFonts.inter(color: PremiumLoginTheme.textSecondary),
+            filled: true,
+            fillColor: PremiumLoginTheme.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(PremiumLoginTheme.fieldRadius),
+              borderSide: const BorderSide(color: PremiumLoginTheme.inputBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(PremiumLoginTheme.fieldRadius),
+              borderSide: const BorderSide(color: PremiumLoginTheme.inputBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(PremiumLoginTheme.fieldRadius),
+              borderSide: const BorderSide(color: PremiumLoginTheme.accentBlue, width: 1.5),
+            ),
+          ),
+          items: ProfileOptions.bloodGroups
+              .map((bg) => DropdownMenuItem<String>(value: bg, child: Text(bg)))
+              .toList(),
+          onChanged: (v) => setState(() => _bloodGroup = v),
+        ),
       ],
     );
   }
@@ -677,7 +723,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           obscureText: true,
           hintText: l10n.authCreatePassword,
           autofillHints: const [AutofillHints.newPassword],
+          bottomGap: 0,
         ),
+        _passwordRequirements(),
         AuthInput(
           label: l10n.authConfirmPassword,
           icon: Icons.lock_outline,
@@ -694,6 +742,54 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           contentPadding: EdgeInsets.zero,
         ),
       ],
+    );
+  }
+
+  /// Live password checklist — shows while typing, disappears once every rule
+  /// is satisfied (or when the field is empty).
+  Widget _passwordRequirements() {
+    final pwd = _password.text;
+    if (pwd.isEmpty) return const SizedBox(height: 20);
+
+    final rules = <({String label, bool ok})>[
+      (label: 'At least 8 characters', ok: pwd.length >= 8),
+      (label: 'One uppercase letter (A–Z)', ok: RegExp(r'[A-Z]').hasMatch(pwd)),
+      (label: 'One lowercase letter (a–z)', ok: RegExp(r'[a-z]').hasMatch(pwd)),
+      (label: 'One number (0–9)', ok: RegExp(r'\d').hasMatch(pwd)),
+      (label: 'One special character (!@#…)', ok: RegExp(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;/`~]').hasMatch(pwd)),
+    ];
+
+    if (rules.every((r) => r.ok)) return const SizedBox(height: 20);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final r in rules)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    r.ok ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                    size: 16,
+                    color: r.ok ? const Color(0xFF16A34A) : PremiumLoginTheme.textSecondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    r.label,
+                    style: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: r.ok ? const Color(0xFF16A34A) : PremiumLoginTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 

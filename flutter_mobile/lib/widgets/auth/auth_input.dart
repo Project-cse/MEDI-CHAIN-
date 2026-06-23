@@ -40,11 +40,21 @@ class AuthInput extends StatefulWidget {
 class _AuthInputState extends State<AuthInput> {
   final _focusNode = FocusNode();
   bool _focused = false;
+  late bool _obscured = widget.obscureText;
 
   @override
   void initState() {
     super.initState();
     _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant AuthInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Keep in sync when the parent controls visibility (e.g. login's own toggle).
+    if (oldWidget.obscureText != widget.obscureText) {
+      _obscured = widget.obscureText;
+    }
   }
 
   @override
@@ -133,7 +143,7 @@ class _AuthInputState extends State<AuthInput> {
                   child: TextFormField(
                     controller: widget.controller,
                     focusNode: _focusNode,
-                    obscureText: widget.obscureText,
+                    obscureText: _obscured,
                     keyboardType: widget.keyboardType,
                     validator: widget.validator,
                     autofillHints: widget.autofillHints,
@@ -168,7 +178,21 @@ class _AuthInputState extends State<AuthInput> {
                   ),
                 ),
               ),
-              if (widget.suffix != null) widget.suffix!,
+              if (widget.suffix != null)
+                widget.suffix!
+              else if (widget.obscureText)
+                GestureDetector(
+                  onTap: () => setState(() => _obscured = !_obscured),
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Icon(
+                      _obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      size: 20,
+                      color: PremiumLoginTheme.textSecondary,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

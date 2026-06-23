@@ -41,6 +41,7 @@ class AuthService {
     required String password,
     String? gender,
     String? dob,
+    String? bloodGroup,
     String? phoneIdToken,
   }) async {
     final res = await _api.post<Map<String, dynamic>>(
@@ -52,6 +53,7 @@ class AuthService {
         'password': password,
         if (gender != null) 'gender': gender,
         if (dob != null) 'dob': dob,
+        if (bloodGroup != null) 'bloodGroup': bloodGroup,
         if (phoneIdToken != null && phoneIdToken.isNotEmpty) 'phoneIdToken': phoneIdToken,
       },
     );

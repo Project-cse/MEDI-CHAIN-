@@ -92,6 +92,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String password,
     String? gender,
     String? dob,
+    String? bloodGroup,
     String? phoneIdToken,
   }) async {
     final previous = state;
@@ -103,6 +104,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             password: password,
             gender: gender,
             dob: dob,
+            bloodGroup: bloodGroup,
             phoneIdToken: phoneIdToken,
           );
       await _ref.read(storageHelperProvider).markPendingNewUser(user.id);

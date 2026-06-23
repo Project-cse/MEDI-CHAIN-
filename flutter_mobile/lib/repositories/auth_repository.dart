@@ -51,6 +51,7 @@ class AuthRepository {
     required String password,
     String? gender,
     String? dob,
+    String? bloodGroup,
     String? phoneIdToken,
   }) async {
     final tokens = await _auth.signup(
@@ -60,6 +61,7 @@ class AuthRepository {
       password: password,
       gender: gender,
       dob: dob,
+      bloodGroup: bloodGroup,
       phoneIdToken: phoneIdToken,
     );
     await _persistTokens(tokens);

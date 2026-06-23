@@ -184,14 +184,9 @@ class _OnboardingSetupStepState extends ConsumerState<OnboardingSetupStep> {
       return;
     }
 
-    // 3. Email must be verified (Google sign-in is auto-verified).
-    if (!_emailVerified) {
-      await _sendEmailOtp();
-      if (!mounted || !_emailVerified) {
-        if (mounted) setState(() => _error ??= 'Please verify your email to continue.');
-        return;
-      }
-    }
+    // Email verification is NOT required to finish setup. Manual signups are
+    // already trusted (they typed the address) and Google sign-ins are
+    // auto-verified, so "Complete Setup" must never block on email OTP.
 
     setState(() => _saving = true);
 
@@ -469,7 +464,7 @@ class _OnboardingSetupStepState extends ConsumerState<OnboardingSetupStep> {
         if (!_emailVerified)
           Padding(
             padding: const EdgeInsets.only(top: 6, left: 2),
-            child: Text("We'll email you a 6-digit code to confirm your address.", style: GoogleFonts.inter(fontSize: 12, color: PremiumHealthcareTheme.textSecondary(context))),
+            child: Text("Email verification is optional — you can complete setup without it.", style: GoogleFonts.inter(fontSize: 12, color: PremiumHealthcareTheme.textSecondary(context))),
           ),
       ],
     );
