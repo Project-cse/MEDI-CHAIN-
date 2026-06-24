@@ -66,6 +66,18 @@ async def patch_onboarding(req: Request, user_id: int = Depends(auth_user)):
     return await user_controller.patch_onboarding(user_id, body)
 
 
+@router.post("/email/signup/send-otp")
+async def signup_send_email_otp(req: Request):
+    body = await req.json()
+    return await user_controller.send_signup_email_otp(body.get("email"))
+
+
+@router.post("/email/signup/verify-otp")
+async def signup_verify_email_otp(req: Request):
+    body = await req.json()
+    return await user_controller.verify_signup_email_otp(body.get("email"), str(body.get("otp", "")))
+
+
 @router.post("/email/send-verification")
 async def send_email_verification(user_id: int = Depends(auth_user)):
     return await user_controller.send_email_verification(user_id)

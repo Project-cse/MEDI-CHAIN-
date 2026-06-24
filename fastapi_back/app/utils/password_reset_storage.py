@@ -74,3 +74,25 @@ def consume_verified_otp(role: str, email: str, otp: str) -> bool:
             return False
     verify_otp(role, email, otp, consume=True)
     return True
+
+
+# --- Pre-signup email verification ------------------------------------------
+# Emails proven via OTP *before* the account exists. Registration consumes this
+# marker to set email_verified, so the front-end can verify on the signup form.
+_verified_signup_emails: Dict[str, float] = {}
+SIGNUP_VERIFIED_WINDOW = 30 * 60
+
+
+def mark_signup_email_verified(email: str) -> None:
+    _verified_signup_emails[email.strip().lower()] = time.time() + SIGNUP_VERIFIED_WINDOW
+
+
+def is_signup_email_verified(email: str) -> bool:
+    exp = _verified_signup_emails.get(email.strip().lower())
+    return bool(exp and exp > time.time())
+
+
+def consume_signup_email_verified(email: str) -> bool:
+    key = email.strip().lower()
+    exp = _verified_signup_emails.pop(key, None)
+    return bool(exp and exp > time.time())

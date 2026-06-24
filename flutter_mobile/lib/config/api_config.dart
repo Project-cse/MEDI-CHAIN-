@@ -62,6 +62,8 @@ class ApiConfig {
   static const String userOnboarding = '/api/user/onboarding';
   static const String userSendEmailVerification = '/api/user/email/send-verification';
   static const String userVerifyEmail = '/api/user/email/verify';
+  static const String userSignupSendEmailOtp = '/api/user/email/signup/send-otp';
+  static const String userSignupVerifyEmailOtp = '/api/user/email/signup/verify-otp';
   static const String userUpdateProfile = '/api/user/update-profile';
   static const String userEmergencyContacts = '/api/user/emergency-contacts';
   static const String userEmergencyContactAdd = '/api/user/emergency-contacts/add';

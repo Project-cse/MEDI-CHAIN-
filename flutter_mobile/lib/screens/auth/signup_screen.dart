@@ -6,8 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../constants/app_colors.dart';
-import '../../onboarding/providers/onboarding_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/service_providers.dart';
 import '../../routes/route_names.dart';
 import '../../services/google_auth_service.dart';
 import '../../services/phone_auth_service.dart';
@@ -60,11 +60,26 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   String? _phoneIdToken;
   String? _verifiedPhone;
 
+  bool _emailVerified = false;
+  bool _sendingEmailOtp = false;
+  String? _verifiedEmail;
+
   @override
   void initState() {
     super.initState();
     _phone.addListener(_onPhoneChanged);
     _password.addListener(_onPasswordChanged);
+    _email.addListener(_onEmailChanged);
+  }
+
+  /// Editing the email after verifying invalidates the proof.
+  void _onEmailChanged() {
+    if (_emailVerified && _email.text.trim().toLowerCase() != _verifiedEmail) {
+      setState(() {
+        _emailVerified = false;
+        _verifiedEmail = null;
+      });
+    }
   }
 
   /// Rebuild so the live password-requirements checklist updates as the user types.
@@ -87,6 +102,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   void dispose() {
     _phone.removeListener(_onPhoneChanged);
     _password.removeListener(_onPasswordChanged);
+    _email.removeListener(_onEmailChanged);
     _name.dispose();
     _email.dispose();
     _phone.dispose();
@@ -134,6 +150,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         if (Validators.phone(_phone.text, l10n) != null) {
           final phoneError = Validators.phone(_phone.text, l10n);
           AppSnackbar.show(context, phoneError ?? l10n.validationPhoneInvalid);
+          return false;
+        }
+        // Email must be verified here before continuing.
+        if (!_emailVerified) {
+          AppSnackbar.show(context, 'Please verify your email to continue.');
           return false;
         }
         // Phone OTP verification is optional — users may verify now or later.
@@ -190,9 +211,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       final state = ref.read(authProvider);
       if (!mounted) return;
       if (state.status == AuthStatus.authenticated) {
-        // Manual signup → verify the email here (Google sign-ins are
-        // auto-verified, so this only runs for email/password accounts).
-        await _verifyEmailAfterSignup();
         if (!mounted) return;
         setState(() {
           _btnState = MorphButtonState.success;
@@ -212,30 +230,42 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     }
   }
 
-  /// Sends an email OTP right after the account is created and lets the user
-  /// confirm it. Never hard-blocks: if sending fails (cold/offline backend) or
-  /// the user skips, we still finish onboarding so signup can't get stuck.
-  Future<void> _verifyEmailAfterSignup() async {
+  /// Verifies the email entered on the contact step via a 6-digit OTP — before
+  /// the account is created (uses the public pre-signup endpoints).
+  Future<void> _verifyEmail() async {
+    final l10n = context.l10n;
+    final emailError = Validators.email(_email.text, l10n);
+    if (emailError != null) {
+      AppSnackbar.show(context, l10n.authEnterValidEmail);
+      return;
+    }
+    setState(() => _sendingEmailOtp = true);
     String? devOtp;
     try {
-      devOtp = await ref
-          .read(onboardingServiceProvider)
-          .sendEmailVerification()
-          .timeout(const Duration(seconds: 12));
-    } catch (_) {
-      return; // don't block signup if the code couldn't be sent
+      devOtp = await ref.read(authServiceProvider).sendSignupEmailOtp(_email.text);
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackbar.show(context, e.toString().replaceFirst('Exception: ', ''));
+      return;
+    } finally {
+      if (mounted) setState(() => _sendingEmailOtp = false);
     }
     if (!mounted) return;
-    await _promptEmailOtp(devOtp: devOtp);
+    final ok = await _promptEmailOtp(devOtp: devOtp);
+    if (ok == true && mounted) {
+      setState(() {
+        _emailVerified = true;
+        _verifiedEmail = _email.text.trim().toLowerCase();
+      });
+      AppSnackbar.show(context, 'Email verified', success: true);
+    }
   }
 
-  Future<void> _promptEmailOtp({String? devOtp}) {
+  Future<bool?> _promptEmailOtp({String? devOtp}) {
     final controller = TextEditingController(text: devOtp ?? '');
-    return showModalBottomSheet<void>(
+    return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -257,8 +287,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 error = null;
               });
               try {
-                await ref.read(onboardingServiceProvider).verifyEmail(code);
-                if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
+                await ref.read(authServiceProvider).verifySignupEmailOtp(_email.text, code);
+                if (sheetCtx.mounted) Navigator.of(sheetCtx).pop(true);
               } catch (e) {
                 setSheet(() {
                   verifying = false;
@@ -273,7 +303,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 error = null;
               });
               try {
-                final dev = await ref.read(onboardingServiceProvider).sendEmailVerification();
+                final dev = await ref.read(authServiceProvider).sendSignupEmailOtp(_email.text);
                 if (dev != null) controller.text = dev;
               } catch (e) {
                 setSheet(() => error = e.toString().replaceFirst('Exception: ', ''));
@@ -331,18 +361,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton(
-                        onPressed: resending ? null : resend,
-                        child: Text(resending ? 'Sending…' : 'Resend code', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.of(sheetCtx).pop(),
-                        child: Text('Skip for now', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: PremiumLoginTheme.textSecondary)),
-                      ),
-                    ],
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: resending ? null : resend,
+                      child: Text(resending ? 'Sending…' : 'Resend code', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                    ),
                   ),
                 ],
               ),
@@ -798,7 +822,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           keyboardType: TextInputType.emailAddress,
           hintText: l10n.authEmailHint,
           autofillHints: const [AutofillHints.email],
+          bottomGap: 0,
         ),
+        _emailVerifyRow(),
         AuthInput(
           label: l10n.authPhone,
           icon: Icons.phone_outlined,
@@ -809,6 +835,45 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         ),
         if (PhoneAuthService.isSupportedPlatform) _phoneVerifyRow(),
       ],
+    );
+  }
+
+  Widget _emailVerifyRow() {
+    if (_emailVerified) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6, bottom: 16),
+        child: Row(
+          children: [
+            const Icon(Icons.verified_rounded, color: Color(0xFF16A34A), size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Email verified',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF16A34A),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 12),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: _sendingEmailOtp ? null : _verifyEmail,
+          icon: _sendingEmailOtp
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.mark_email_read_outlined, size: 18),
+          label: Text(
+            _sendingEmailOtp ? 'Sending code…' : 'Verify email via OTP',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          ),
+          style: TextButton.styleFrom(foregroundColor: PremiumLoginTheme.accentBlue),
+        ),
+      ),
     );
   }
 

@@ -60,6 +60,26 @@ class AuthService {
     return _parseTokens(res.data ?? {}, 'Registration failed');
   }
 
+  /// Sends a 6-digit OTP to verify an email during signup (before the account
+  /// exists). Returns a dev OTP when the backend is in debug mode.
+  Future<String?> sendSignupEmailOtp(String email) async {
+    final res = await _api.post<Map<String, dynamic>>(
+      ApiConfig.userSignupSendEmailOtp,
+      data: {'email': email.trim()},
+    );
+    final data = res.data ?? {};
+    assertSuccess(data, 'Failed to send verification code');
+    return data['dev_otp']?.toString();
+  }
+
+  Future<void> verifySignupEmailOtp(String email, String otp) async {
+    final res = await _api.post<Map<String, dynamic>>(
+      ApiConfig.userSignupVerifyEmailOtp,
+      data: {'email': email.trim(), 'otp': otp.trim()},
+    );
+    assertSuccess(res.data ?? {}, 'Invalid code');
+  }
+
   Future<void> forgotPassword(String email) async {
     final res = await _api.post<Map<String, dynamic>>(
       ApiConfig.authForgotPassword,

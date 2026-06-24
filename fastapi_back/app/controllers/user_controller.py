@@ -93,12 +93,17 @@ async def register_user(req_body: dict):
 
         hashed_password = get_password_hash(password)
 
+        # Email may have been verified on the signup form (pre-account OTP).
+        from app.utils import password_reset_storage
+        email_verified = password_reset_storage.consume_signup_email_verified(email)
+
         user_data = {
             "name": name,
             "email": email,
             "password": hashed_password,
             "phone": phone,
             "phone_verified": phone_verified,
+            "email_verified": email_verified,
             "role": 'patient'
         }
         # Persist the profile details collected during signup so the onboarding
@@ -254,6 +259,58 @@ async def social_login(req_body: dict):
 
 # Namespace for email-verification OTPs (kept separate from password reset).
 EMAIL_VERIFY_NS = "email_verify"
+# Namespace for pre-signup email verification (no account exists yet).
+SIGNUP_EMAIL_VERIFY_NS = "signup_email_verify"
+
+
+async def send_signup_email_otp(email: str):
+    """Send a 6-digit OTP to an email during signup (before the account exists)."""
+    try:
+        import re
+        from app.utils import password_reset_storage
+
+        email = (email or "").strip().lower()
+        if not email or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+            return {"success": False, "message": "Enter a valid email address"}
+
+        existing = await user_model.get_user_by_email(email)
+        if existing:
+            return {"success": False, "message": "This email is already registered. Please log in."}
+
+        otp = password_reset_storage.generate_otp()
+        password_reset_storage.store_otp(SIGNUP_EMAIL_VERIFY_NS, email, otp)
+        result = await email_service.send_email_verification_otp(email, otp, "there")
+        if result.get("success"):
+            return {"success": True, "message": "Verification code sent to your email"}
+        if settings.DEBUG:
+            return {"success": True, "message": "OTP generated (email delivery failed — dev)", "dev_otp": otp}
+        return {"success": False, "message": result.get("message") or "Failed to send verification email"}
+    except Exception as e:
+        print(f"[ERROR] Send Signup Email OTP Error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+async def verify_signup_email_otp(email: str, otp: str):
+    """Verify a signup email OTP and remember the email as verified for registration."""
+    try:
+        import re
+        from app.utils import password_reset_storage
+
+        email = (email or "").strip().lower()
+        if not email:
+            return {"success": False, "message": "Email is required"}
+        if not otp or not re.match(r"^\d{6}$", str(otp)):
+            return {"success": False, "message": "Please enter a valid 6-digit code"}
+
+        result = password_reset_storage.verify_otp(SIGNUP_EMAIL_VERIFY_NS, email, str(otp), consume=True)
+        if not result.get("success"):
+            return {"success": False, "message": result.get("message", "Invalid code")}
+
+        password_reset_storage.mark_signup_email_verified(email)
+        return {"success": True, "message": "Email verified"}
+    except Exception as e:
+        print(f"[ERROR] Verify Signup Email OTP Error: {e}")
+        return {"success": False, "message": str(e)}
 
 
 async def send_email_verification(user_id: int):
