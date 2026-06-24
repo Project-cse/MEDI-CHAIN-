@@ -229,11 +229,13 @@ class _OnboardingSetupStepState extends ConsumerState<OnboardingSetupStep> {
       debugPrint('Onboarding profile sync: $e');
     }));
 
-    // Finish onboarding and go straight to the home screen. This never blocks
-    // on the network, so "Complete Setup" always lands on the dashboard.
+    // Finish onboarding and go straight to the home screen. Finishing removes
+    // this overlay (which unmounts this widget), so we capture the router first
+    // and navigate via it — otherwise the `mounted` guard would skip navigation
+    // and leave the user on the last tour route (e.g. the emergency page).
+    final router = GoRouter.of(context);
     await ref.read(onboardingProvider.notifier).finishOnboarding();
-    if (!mounted) return;
-    context.go(RouteNames.dashboard);
+    router.go(RouteNames.dashboard);
   }
 
   @override
