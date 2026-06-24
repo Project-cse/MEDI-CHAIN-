@@ -71,6 +71,9 @@ class ApiConfig {
   static const String emergencySendAlert = '/api/emergency/send-alert';
   static const String userForgotPassword = '/api/user/forgot-password';
   static const String userFcmToken = '/api/user/fcm-token';
+  static const String userNotifications = '/api/user/notifications';
+  static const String userNotificationsRead = '/api/user/notifications/read';
+  static const String userNotificationsReadAll = '/api/user/notifications/read-all';
   static const String userTelegramLinkCode = '/api/user/telegram/link-code';
   static const String userTelegramStatus = '/api/user/telegram/status';
   static const String userTelegramUnlink = '/api/user/telegram/link';

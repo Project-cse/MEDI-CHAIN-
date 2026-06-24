@@ -163,6 +163,13 @@ class HealthRecordService {
         .toList();
   }
 
+  Future<void> deleteRecord(String recordId) async {
+    final res = await _api.dio.delete<Map<String, dynamic>>(
+      '${ApiConfig.healthRecords}/$recordId',
+    );
+    assertSuccess(res.data ?? {}, 'Could not delete report');
+  }
+
   Future<void> upload({
     required String userId,
     required String docId,
@@ -172,6 +179,7 @@ class HealthRecordService {
     String? description,
     String? appointmentId,
     required List<PlatformFile> files,
+    CancelToken? cancelToken,
   }) async {
     final form = FormData();
     form.fields.addAll([
@@ -203,6 +211,7 @@ class HealthRecordService {
       ApiConfig.healthRecords,
       data: form,
       options: Options(contentType: 'multipart/form-data'),
+      cancelToken: cancelToken,
     );
     assertSuccess(res.data ?? {}, 'Upload failed');
   }

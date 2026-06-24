@@ -17,8 +17,10 @@ import '../../providers/appointment_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/booking_state_provider.dart';
 import '../../providers/doctor_provider.dart';
+import '../../providers/health_record_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../services/app_permissions_service.dart';
+import '../../services/health_record_service.dart';
 import '../../services/payment_service.dart';
 import '../../services/razorpay_checkout_service.dart';
 import '../../routes/route_names.dart';
@@ -135,6 +137,194 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
         _reportFile = picked.files.first;
         _reportFileName = picked.files.first.name;
       });
+    }
+  }
+
+  /// Lets the patient either reuse a report they already uploaded, or pick a
+  /// brand-new file from their device.
+  Future<void> _chooseReportSource() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PremiumBookingTheme.white(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: PremiumBookingTheme.border(ctx),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.folder_open_outlined, color: PremiumBookingTheme.accentBlue),
+              title: Text('Choose from my reports',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: Text('Attach a report you already uploaded',
+                  style: GoogleFonts.inter(fontSize: 12, color: PremiumBookingTheme.textSecondary(ctx))),
+              onTap: () => Navigator.pop(ctx, 'existing'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cloud_upload_outlined, color: PremiumBookingTheme.accentBlue),
+              title: Text('Upload new report',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: Text('Pick a PDF, image or document from your device',
+                  style: GoogleFonts.inter(fontSize: 12, color: PremiumBookingTheme.textSecondary(ctx))),
+              onTap: () => Navigator.pop(ctx, 'new'),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+    if (choice == 'new') {
+      await _pickReport();
+    } else if (choice == 'existing') {
+      await _pickExistingReport();
+    }
+  }
+
+  Future<void> _pickExistingReport() async {
+    final selected = await showModalBottomSheet<HealthRecordItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: PremiumBookingTheme.white(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          maxChildSize: 0.9,
+          builder: (ctx, scrollCtrl) => Consumer(
+            builder: (ctx, ref2, _) {
+              final records = ref2.watch(healthRecordsProvider);
+              return records.when(
+                loading: () => const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
+                error: (e, _) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text('Could not load your reports.\n$e', textAlign: TextAlign.center),
+                  ),
+                ),
+                data: (list) {
+                  final withFiles = list.where((r) => r.files.isNotEmpty).toList();
+                  return ListView(
+                    controller: scrollCtrl,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: PremiumBookingTheme.border(ctx),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text('My uploaded reports',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16)),
+                      const SizedBox(height: 12),
+                      if (withFiles.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Column(
+                            children: [
+                              Icon(Icons.folder_open_outlined,
+                                  size: 44, color: PremiumBookingTheme.textSecondary(ctx).withValues(alpha: 0.5)),
+                              const SizedBox(height: 12),
+                              Text('You have no uploaded reports yet.',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.inter(fontSize: 13, color: PremiumBookingTheme.textSecondary(ctx))),
+                            ],
+                          ),
+                        )
+                      else
+                        ...withFiles.map((r) {
+                          final fileName = r.files.first['fileName']?.toString() ?? r.title;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: PremiumBookingTheme.border(ctx)),
+                            ),
+                            child: ListTile(
+                              leading: const Icon(Icons.description_outlined, color: PremiumBookingTheme.accentBlue),
+                              title: Text(r.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13)),
+                              subtitle: Text(fileName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(fontSize: 11, color: PremiumBookingTheme.textSecondary(ctx))),
+                              trailing: const Icon(Icons.add_circle_outline, color: PremiumBookingTheme.accentBlue),
+                              onTap: () => Navigator.pop(ctx, r),
+                            ),
+                          );
+                        }),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+    if (selected != null) {
+      await _attachExistingReport(selected);
+    }
+  }
+
+  Future<void> _attachExistingReport(HealthRecordItem record) async {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Expanded(child: Text('Attaching report...')),
+            ],
+          ),
+        ),
+      ),
+    );
+    try {
+      final service = ref.read(healthRecordServiceProvider);
+      final fileName = record.files.first['fileName']?.toString() ?? 'report.pdf';
+      final fileType = record.files.first['fileType']?.toString();
+      final dl = await service.downloadReportFile(
+        record.id,
+        fallbackFileName: fileName,
+        fallbackFileType: fileType,
+      );
+      if (!mounted) return;
+      setState(() {
+        _reportFile = PlatformFile(name: dl.fileName, size: dl.bytes.length, bytes: dl.bytes);
+        _reportFileName = dl.fileName;
+      });
+      Navigator.of(context, rootNavigator: true).pop();
+      AppSnackbar.show(context, 'Report attached', success: true);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      AppSnackbar.show(context, e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
@@ -858,10 +1048,10 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                 Divider(height: 1, color: PremiumBookingTheme.border(context)),
                 const SizedBox(height: 14),
                 OutlinedButton.icon(
-                  onPressed: _pickReport,
-                  icon: const Icon(Icons.cloud_upload_outlined, size: 16),
+                  onPressed: _chooseReportSource,
+                  icon: Icon(_reportFileName == null ? Icons.cloud_upload_outlined : Icons.swap_horiz_rounded, size: 16),
                   label: Text(
-                    _reportFileName ?? context.l10n.bookingUploadReport,
+                    _reportFileName == null ? 'Choose existing or upload new' : 'Choose another',
                     style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 12),
                   ),
                   style: OutlinedButton.styleFrom(
@@ -875,11 +1065,38 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                   ),
                 ),
                 if (_reportFileName != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      _reportFileName!,
-                      style: GoogleFonts.inter(fontSize: 11, color: PremiumBookingTheme.accentBlue),
+                  Container(
+                    margin: const EdgeInsets.only(top: 10),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+                    decoration: BoxDecoration(
+                      color: PremiumBookingTheme.chipSelectedBg(context),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: PremiumBookingTheme.accentBlue.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.insert_drive_file_outlined, size: 16, color: PremiumBookingTheme.accentBlue),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _reportFileName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: PremiumBookingTheme.accentBlue),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove report',
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          icon: const Icon(Icons.cancel, size: 20, color: Color(0xFFE53935)),
+                          onPressed: () => setState(() {
+                            _reportFile = null;
+                            _reportFileName = null;
+                          }),
+                        ),
+                      ],
                     ),
                   ),
               ],

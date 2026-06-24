@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../constants/app_colors.dart';
+import '../../onboarding/providers/onboarding_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../routes/route_names.dart';
 import '../../services/google_auth_service.dart';
@@ -189,6 +190,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       final state = ref.read(authProvider);
       if (!mounted) return;
       if (state.status == AuthStatus.authenticated) {
+        // Manual signup → verify the email here (Google sign-ins are
+        // auto-verified, so this only runs for email/password accounts).
+        await _verifyEmailAfterSignup();
+        if (!mounted) return;
         setState(() {
           _btnState = MorphButtonState.success;
           _showSuccess = true;
@@ -205,6 +210,147 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       setState(() => _btnState = MorphButtonState.idle);
       AppSnackbar.show(context, e.toString().replaceFirst('Exception: ', ''));
     }
+  }
+
+  /// Sends an email OTP right after the account is created and lets the user
+  /// confirm it. Never hard-blocks: if sending fails (cold/offline backend) or
+  /// the user skips, we still finish onboarding so signup can't get stuck.
+  Future<void> _verifyEmailAfterSignup() async {
+    String? devOtp;
+    try {
+      devOtp = await ref
+          .read(onboardingServiceProvider)
+          .sendEmailVerification()
+          .timeout(const Duration(seconds: 12));
+    } catch (_) {
+      return; // don't block signup if the code couldn't be sent
+    }
+    if (!mounted) return;
+    await _promptEmailOtp(devOtp: devOtp);
+  }
+
+  Future<void> _promptEmailOtp({String? devOtp}) {
+    final controller = TextEditingController(text: devOtp ?? '');
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        bool verifying = false;
+        bool resending = false;
+        String? error;
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheet) {
+            Future<void> submit() async {
+              final code = controller.text.trim();
+              if (code.length < 6) {
+                setSheet(() => error = 'Enter the 6-digit code');
+                return;
+              }
+              setSheet(() {
+                verifying = true;
+                error = null;
+              });
+              try {
+                await ref.read(onboardingServiceProvider).verifyEmail(code);
+                if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
+              } catch (e) {
+                setSheet(() {
+                  verifying = false;
+                  error = e.toString().replaceFirst('Exception: ', '');
+                });
+              }
+            }
+
+            Future<void> resend() async {
+              setSheet(() {
+                resending = true;
+                error = null;
+              });
+              try {
+                final dev = await ref.read(onboardingServiceProvider).sendEmailVerification();
+                if (dev != null) controller.text = dev;
+              } catch (e) {
+                setSheet(() => error = e.toString().replaceFirst('Exception: ', ''));
+              } finally {
+                setSheet(() => resending = false);
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Verify your email', style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 18)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Enter the 6-digit code sent to ${_email.text.trim()}',
+                    style: GoogleFonts.inter(fontSize: 13, color: PremiumLoginTheme.textSecondary),
+                  ),
+                  const SizedBox(height: 18),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    autofocus: true,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(fontSize: 20, letterSpacing: 8, fontWeight: FontWeight.w700),
+                    decoration: InputDecoration(
+                      counterText: '',
+                      hintText: '------',
+                      errorText: error,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onSubmitted: (_) => submit(),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: verifying ? null : submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: PremiumLoginTheme.accentBlue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: verifying
+                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+                          : Text('Verify', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton(
+                        onPressed: resending ? null : resend,
+                        child: Text(resending ? 'Sending…' : 'Resend code', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(sheetCtx).pop(),
+                        child: Text('Skip for now', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: PremiumLoginTheme.textSecondary)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _googleSignIn() async {

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +32,8 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
   bool _uploading = false;
   bool _uploadSuccess = false;
   bool _openingReport = false;
+  CancelToken? _uploadCancelToken;
+  String? _deletingId;
 
   @override
   void dispose() {
@@ -84,9 +87,18 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
 
     try {
       final service = ref.read(healthRecordServiceProvider);
-      // Always proxy via backend — Cloudinary PDF URLs often 401 / fail in browser.
       final fileName = _reportFileName(record);
       final fileType = _reportFileType(record);
+
+      // Fast path: open the already-downloaded copy without hitting the network.
+      final openedFromCache = await openCachedReport(
+        record.id,
+        fileName,
+        fileType: fileType,
+      );
+      if (openedFromCache) return;
+
+      // Always proxy via backend — Cloudinary PDF URLs often 401 / fail in browser.
       final downloaded = await service.downloadReportFile(
         record.id,
         fallbackFileName: fileName,
@@ -97,6 +109,7 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
         downloaded.fileName,
         mimeType: downloaded.contentType,
         fileType: downloaded.fileType ?? fileType,
+        cacheKey: record.id,
       );
     } catch (e) {
       if (mounted) {
@@ -137,9 +150,11 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
     );
     if (picked == null || picked.files.isEmpty) return;
 
+    final cancelToken = CancelToken();
     setState(() {
       _uploading = true;
       _uploadSuccess = false;
+      _uploadCancelToken = cancelToken;
     });
     try {
       await ref.read(healthRecordServiceProvider).upload(
@@ -149,11 +164,13 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
             title: _title.text.trim(),
             recordType: _recordType,
             files: picked.files,
+            cancelToken: cancelToken,
           );
       ref.invalidate(healthRecordsProvider);
       if (mounted) {
         setState(() {
           _uploading = false;
+          _uploadCancelToken = null;
           _uploadSuccess = true;
         });
         AppSnackbar.show(context, l10n.recordsUploadSuccess, success: true);
@@ -162,9 +179,60 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
           if (mounted) setState(() => _uploadSuccess = false);
         });
       }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _uploading = false;
+        _uploadCancelToken = null;
+      });
+      if (e.type == DioExceptionType.cancel) {
+        AppSnackbar.show(context, 'Upload cancelled');
+      } else {
+        AppSnackbar.show(context, e.message ?? 'Upload failed');
+      }
     } catch (e) {
       if (mounted) AppSnackbar.show(context, e.toString());
-      if (mounted) setState(() => _uploading = false);
+      if (mounted) setState(() {
+        _uploading = false;
+        _uploadCancelToken = null;
+      });
+    }
+  }
+
+  void _cancelUpload() {
+    _uploadCancelToken?.cancel('cancelled-by-user');
+  }
+
+  Future<void> _deleteRecord(HealthRecordItem record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete report?', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        content: Text(
+          'This will permanently remove "${record.title}". This cannot be undone.',
+          style: GoogleFonts.poppins(fontSize: 14),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _deletingId = record.id);
+    try {
+      await ref.read(healthRecordServiceProvider).deleteRecord(record.id);
+      ref.invalidate(healthRecordsProvider);
+      if (mounted) AppSnackbar.show(context, 'Report deleted', success: true);
+    } catch (e) {
+      if (mounted) AppSnackbar.show(context, e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _deletingId = null);
     }
   }
 
@@ -252,6 +320,25 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
                               : UploadButtonState.idle,
                       onPressed: _pickAndUpload,
                     ),
+                    if (_uploading) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _cancelUpload,
+                          icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.error),
+                          label: Text(
+                            'Cancel upload',
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: AppColors.error),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.error),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     Row(
                       children: [
@@ -374,10 +461,32 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
                     ],
                   ),
                 ),
-                Icon(
-                  hasFile ? Icons.open_in_new : Icons.check_circle,
-                  color: hasFile ? AppColors.primaryBlue : const Color(0xFF16A34A),
-                  size: 22,
+                Column(
+                  children: [
+                    Icon(
+                      hasFile ? Icons.open_in_new : Icons.check_circle,
+                      color: hasFile ? AppColors.primaryBlue : const Color(0xFF16A34A),
+                      size: 22,
+                    ),
+                    const SizedBox(height: 6),
+                    _deletingId == r.id
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: Padding(
+                              padding: EdgeInsets.all(3),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.error),
+                            ),
+                          )
+                        : InkWell(
+                            onTap: () => _deleteRecord(r),
+                            borderRadius: BorderRadius.circular(20),
+                            child: const Padding(
+                              padding: EdgeInsets.all(2),
+                              child: Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 22),
+                            ),
+                          ),
+                  ],
                 ),
               ],
             ),

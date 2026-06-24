@@ -247,27 +247,37 @@ class _SpotlightPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Darker scrim so a still-loading page behind the tour (spinners, skeletons)
-    // is muted and the coach-mark stays the clear focus.
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0xFF0B1220).withValues(alpha: 0.82),
+    final full = Offset.zero & size;
+    // Real spotlight: dark scrim everywhere EXCEPT a clear hole over the target,
+    // so the highlighted element stays bright and is the obvious focus.
+    final hole = RRect.fromRectAndRadius(
+      anchor.inflate(6 * pulseScale),
+      Radius.circular(anchorRadius + 6),
     );
 
-    final ring = RRect.fromRectAndRadius(anchor, Radius.circular(anchorRadius));
+    canvas.saveLayer(full, Paint());
+    canvas.drawRect(
+      full,
+      Paint()..color = const Color(0xFF0B1220).withValues(alpha: 0.80),
+    );
+    // Punch the hole.
+    canvas.drawRRect(hole, Paint()..blendMode = BlendMode.clear);
+    canvas.restore();
+
+    // Glowing ring around the spotlight.
     canvas.drawRRect(
-      ring,
+      hole,
       Paint()
-        ..color = PremiumHealthcareTheme.secondaryBlue.withValues(alpha: 0.55)
+        ..color = PremiumHealthcareTheme.secondaryBlue.withValues(alpha: 0.95)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6,
+        ..strokeWidth = 2.2,
     );
     canvas.drawRRect(
-      ring.inflate(4 * pulseScale),
+      hole.inflate(6 * pulseScale),
       Paint()
-        ..color = PremiumHealthcareTheme.secondaryBlue.withValues(alpha: 0.18)
+        ..color = PremiumHealthcareTheme.secondaryBlue.withValues(alpha: 0.22)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
+        ..strokeWidth = 2,
     );
   }
 

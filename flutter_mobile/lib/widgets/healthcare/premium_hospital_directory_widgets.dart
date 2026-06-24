@@ -309,7 +309,12 @@ class PremiumHospitalDirectoryCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Container(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onDetails,
+          borderRadius: BorderRadius.circular(PremiumHospitalDirectoryTheme.cardRadius),
+          child: Container(
         decoration: BoxDecoration(
           color: PremiumHospitalDirectoryTheme.white(context),
           borderRadius: BorderRadius.circular(PremiumHospitalDirectoryTheme.cardRadius),
@@ -538,33 +543,12 @@ class PremiumHospitalDirectoryCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                  const SizedBox(width: 8),
-                  Material(
-                    color: PremiumHospitalDirectoryTheme.background(context),
-                    borderRadius: BorderRadius.circular(10),
-                    child: InkWell(
-                      onTap: onDetails,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: PremiumHospitalDirectoryTheme.border(context)),
-                        ),
-                        child: Icon(
-                          Icons.chevron_right_rounded,
-                          size: 22,
-                          color: PremiumHospitalDirectoryTheme.textSecondary(context),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
           ],
+        ),
+          ),
         ),
       ),
     );

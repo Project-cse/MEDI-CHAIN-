@@ -24,6 +24,7 @@ class PatientDrawer extends ConsumerWidget {
   ];
 
   static const _legalItems = <_DrawerItem>[
+    _DrawerItem('Contact Us', Icons.support_agent_outlined, RouteNames.contactUs),
     _DrawerItem('About', Icons.info_outline, RouteNames.about),
     _DrawerItem('Terms & Conditions', Icons.description_outlined, RouteNames.terms),
   ];

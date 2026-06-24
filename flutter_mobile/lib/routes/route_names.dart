@@ -26,6 +26,7 @@ class RouteNames {
   static const paymentMethods = '/payment-methods';
   static const help = '/help';
   static const about = '/about';
+  static const contactUs = '/contact-us';
   static const terms = '/terms';
   static const hospitals = '/hospitals';
   static const hospitalDetails = '/hospitals/:id';

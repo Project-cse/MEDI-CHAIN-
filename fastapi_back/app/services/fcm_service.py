@@ -81,18 +81,45 @@ def _send_multicast_sync(tokens: List[str], title: str, body: str, data: Dict[st
     return messaging.send_each_for_multicast(message)
 
 
+def _safe_int(value: Any) -> Optional[int]:
+    try:
+        if value is None or value == "":
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+async def _persist_notification(user_id: int, title: str, body: str, payload: Dict[str, Any]):
+    """Store the notification so the in-app notifications page can show history."""
+    try:
+        from app.models import notification_model
+
+        await notification_model.create(
+            user_id=int(user_id),
+            title=title,
+            body=body,
+            type=str(payload.get("type", "system")),
+            appointment_id=_safe_int(payload.get("appointmentId")),
+        )
+    except Exception as e:
+        print(f"[WARNING] notification persist failed for user {user_id}: {e}")
+
+
 async def send_to_user(
     user_id: int,
     title: str,
     body: str,
     data: Optional[Dict[str, Any]] = None,
 ) -> bool:
+    payload = data or {}
+    # Always record the notification (history survives even if push delivery fails).
+    await _persist_notification(int(user_id), title, body, payload)
     if not _ensure_firebase():
         return False
     tokens = await fcm_token_model.get_tokens_for_user(int(user_id))
     if not tokens:
         return False
-    payload = data or {}
 
     def _run():
         response = _send_multicast_sync(tokens, title, body, payload)

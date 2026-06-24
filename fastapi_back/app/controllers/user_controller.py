@@ -1620,3 +1620,46 @@ async def remove_fcm_token(user_id: int, body: dict):
 
     await fcm_token_model.delete_token(user_id, token)
     return {"success": True, "message": "FCM token removed"}
+
+
+def _format_notification(row: dict) -> dict:
+    created = row.get("created_at")
+    return {
+        "id": str(row.get("id")),
+        "title": row.get("title") or "",
+        "message": row.get("body") or "",
+        "type": row.get("type") or "system",
+        "appointmentId": str(row["appointment_id"]) if row.get("appointment_id") is not None else None,
+        "read": bool(row.get("is_read")),
+        "createdAt": created.isoformat() if created else None,
+    }
+
+
+async def list_notifications(user_id: int, limit: int = 50, offset: int = 0):
+    from app.models import notification_model
+
+    rows = await notification_model.list_for_user(user_id, limit=limit, offset=offset)
+    unread = await notification_model.unread_count(user_id)
+    return {
+        "success": True,
+        "notifications": [_format_notification(r) for r in rows],
+        "unreadCount": unread,
+    }
+
+
+async def mark_notification_read(user_id: int, notification_id):
+    from app.models import notification_model
+
+    try:
+        nid = int(notification_id)
+    except (TypeError, ValueError):
+        return {"success": False, "message": "Valid notification id is required"}
+    await notification_model.mark_read(user_id, nid)
+    return {"success": True}
+
+
+async def mark_all_notifications_read(user_id: int):
+    from app.models import notification_model
+
+    await notification_model.mark_all_read(user_id)
+    return {"success": True}

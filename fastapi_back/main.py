@@ -105,6 +105,12 @@ async def lifespan(app: FastAPI):
         except Exception as _e:
             log.warning("Could not ensure call_sessions table: %s", _e)
         try:
+            from app.models import notification_model
+            await notification_model.ensure_notifications_table()
+            log.info("Notifications table ready")
+        except Exception as _e:
+            log.warning("Could not ensure notifications table: %s", _e)
+        try:
             from app.services import fcm_service
             fcm_service._ensure_firebase()
         except Exception as _e:

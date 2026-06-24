@@ -25,6 +25,7 @@ import '../screens/doctors/doctors_list_screen.dart';
 import '../screens/doctors/search_doctors_screen.dart';
 import '../screens/search/home_search_screen.dart';
 import '../screens/profile/about_screen.dart';
+import '../screens/profile/contact_us_screen.dart';
 import '../screens/profile/help_screen.dart';
 import '../screens/profile/terms_screen.dart';
 import '../screens/profile/payments_screen.dart';
@@ -233,6 +234,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: RouteNames.paymentMethods, redirect: (_, __) => RouteNames.payments),
       GoRoute(path: RouteNames.help, builder: (_, __) => const HelpScreen()),
       GoRoute(path: RouteNames.about, builder: (_, __) => const AboutScreen()),
+      GoRoute(path: RouteNames.contactUs, builder: (_, __) => const ContactUsScreen()),
       GoRoute(path: RouteNames.terms, builder: (_, __) => const TermsScreen()),
       GoRoute(path: RouteNames.hospitals, builder: (_, __) => const HospitalsListScreen()),
       GoRoute(

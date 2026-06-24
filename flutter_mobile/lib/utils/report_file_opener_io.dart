@@ -7,11 +7,43 @@ import 'package:share_plus/share_plus.dart';
 
 import 'report_mime_utils.dart';
 
+/// Opens a previously cached report instantly (no network). Returns false when
+/// nothing is cached for [cacheKey], so the caller can download it instead.
+Future<bool> openCachedReport(
+  String cacheKey,
+  String filename, {
+  String? mimeType,
+  String? fileType,
+}) async {
+  try {
+    final safeName = ReportMimeUtils.sanitizeFileName(
+      ReportMimeUtils.ensureExtension(filename, fileType: fileType, contentType: mimeType),
+    );
+    final dir = await getApplicationDocumentsDirectory();
+    final path = '${dir.path}/reports/${_cachePrefix(cacheKey)}$safeName';
+    final file = File(path);
+    if (!await file.exists() || await file.length() == 0) return false;
+    final resolvedMime = ReportMimeUtils.resolveMimeType(
+      fileName: safeName,
+      contentType: mimeType,
+      fileType: fileType,
+    );
+    final result = await OpenFilex.open(path, type: resolvedMime);
+    return result.type == ResultType.done;
+  } catch (_) {
+    return false;
+  }
+}
+
+String _cachePrefix(String? cacheKey) =>
+    (cacheKey == null || cacheKey.isEmpty) ? '' : '${cacheKey}_';
+
 Future<void> openReportBytes(
   Uint8List bytes,
   String filename, {
   String? mimeType,
   String? fileType,
+  String? cacheKey,
 }) async {
   final safeName = ReportMimeUtils.sanitizeFileName(
     ReportMimeUtils.ensureExtension(filename, fileType: fileType, contentType: mimeType),
@@ -28,7 +60,8 @@ Future<void> openReportBytes(
     await reportsDir.create(recursive: true);
   }
 
-  final path = '${reportsDir.path}/$safeName';
+  // Cache under a stable, record-scoped name so repeat opens are instant.
+  final path = '${reportsDir.path}/${_cachePrefix(cacheKey)}$safeName';
   final file = File(path);
   await file.writeAsBytes(bytes, flush: true);
 

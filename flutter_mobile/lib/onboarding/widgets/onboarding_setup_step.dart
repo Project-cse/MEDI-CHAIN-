@@ -39,7 +39,6 @@ class _OnboardingSetupStepState extends ConsumerState<OnboardingSetupStep> {
   String? _bloodGroup;
   DateTime? _dob;
   bool _emailVerified = false;
-  bool _sendingEmailOtp = false;
 
   // Emergency contact
   final _ecName = TextEditingController();
@@ -241,104 +240,6 @@ class _OnboardingSetupStepState extends ConsumerState<OnboardingSetupStep> {
     context.go(RouteNames.dashboard);
   }
 
-  Future<void> _sendEmailOtp() async {
-    setState(() {
-      _sendingEmailOtp = true;
-      _error = null;
-    });
-    String? devOtp;
-    try {
-      devOtp = await ref.read(onboardingServiceProvider).sendEmailVerification();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
-      return;
-    } finally {
-      if (mounted) setState(() => _sendingEmailOtp = false);
-    }
-    if (!mounted) return;
-    final verified = await _promptEmailOtp(devOtp: devOtp);
-    if (verified == true && mounted) {
-      setState(() {
-        _emailVerified = true;
-        _error = null;
-      });
-    }
-  }
-
-  Future<bool?> _promptEmailOtp({String? devOtp}) {
-    final controller = TextEditingController(text: devOtp ?? '');
-    return showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: PremiumHealthcareTheme.white(context),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (sheetCtx) {
-        bool verifying = false;
-        String? error;
-        return StatefulBuilder(
-          builder: (sheetCtx, setSheet) {
-            Future<void> submit() async {
-              final code = controller.text.trim();
-              if (code.length < 6) {
-                setSheet(() => error = 'Enter the 6-digit code');
-                return;
-              }
-              setSheet(() {
-                verifying = true;
-                error = null;
-              });
-              try {
-                await ref.read(onboardingServiceProvider).verifyEmail(code);
-                if (sheetCtx.mounted) Navigator.of(sheetCtx).pop(true);
-              } catch (e) {
-                setSheet(() {
-                  verifying = false;
-                  error = e.toString().replaceFirst('Exception: ', '');
-                });
-              }
-            }
-
-            return Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24, left: 24, right: 24, top: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('Verify your email', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18, color: PremiumHealthcareTheme.text(sheetCtx))),
-                  const SizedBox(height: 6),
-                  Text('Enter the 6-digit code sent to ${_email.text}', style: GoogleFonts.inter(fontSize: 13, color: PremiumHealthcareTheme.textSecondary(sheetCtx))),
-                  const SizedBox(height: 18),
-                  TextField(
-                    controller: controller,
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                    autofocus: true,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(fontSize: 20, letterSpacing: 8, fontWeight: FontWeight.w700, color: PremiumHealthcareTheme.text(sheetCtx)),
-                    decoration: InputDecoration(counterText: '', hintText: '------', errorText: error, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                    onSubmitted: (_) => submit(),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: verifying ? null : submit,
-                      style: ElevatedButton.styleFrom(backgroundColor: PremiumHealthcareTheme.primaryBlue, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                      child: verifying
-                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                          : Text('Verify', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -433,39 +334,15 @@ class _OnboardingSetupStepState extends ConsumerState<OnboardingSetupStep> {
       );
 
   Widget _emailField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    // Email is verified during sign-up (manual) or auto-verified (Google), so the
+    // onboarding tour only displays it read-only — no verification action here.
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(child: _field(context.l10n.authEmail, _email, readOnly: true)),
-            const SizedBox(width: 10),
-            if (_emailVerified)
-              const _VerifiedChip()
-            else
-              SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _sendingEmailOtp ? null : _sendEmailOtp,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: PremiumHealthcareTheme.primaryBlue,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _sendingEmailOtp
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Text('Verify', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
-                ),
-              ),
-          ],
-        ),
-        if (!_emailVerified)
-          Padding(
-            padding: const EdgeInsets.only(top: 6, left: 2),
-            child: Text("Email verification is optional — you can complete setup without it.", style: GoogleFonts.inter(fontSize: 12, color: PremiumHealthcareTheme.textSecondary(context))),
-          ),
+        Expanded(child: _field(context.l10n.authEmail, _email, readOnly: true)),
+        if (_emailVerified) ...[
+          const SizedBox(width: 10),
+          const _VerifiedChip(),
+        ],
       ],
     );
   }

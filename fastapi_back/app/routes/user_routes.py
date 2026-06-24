@@ -456,6 +456,26 @@ async def user_post_chat(appointmentId: int, req: Request, user_id: int = Depend
     return await vc_chat_controller.post_message(appointmentId, 'patient', name or 'Patient', body.get('text', ''))
 
 
+@router.get("/notifications")
+async def list_notifications(
+    user_id: int = Depends(auth_user),
+    limit: int = 50,
+    offset: int = 0,
+):
+    return await user_controller.list_notifications(user_id, limit=limit, offset=offset)
+
+
+@router.post("/notifications/read")
+async def mark_notification_read(req: Request, user_id: int = Depends(auth_user)):
+    body = await req.json()
+    return await user_controller.mark_notification_read(user_id, body.get("id"))
+
+
+@router.post("/notifications/read-all")
+async def mark_all_notifications_read(user_id: int = Depends(auth_user)):
+    return await user_controller.mark_all_notifications_read(user_id)
+
+
 @router.post("/fcm-token")
 async def register_fcm_token(req: Request, user_id: int = Depends(auth_user)):
     body = await req.json()

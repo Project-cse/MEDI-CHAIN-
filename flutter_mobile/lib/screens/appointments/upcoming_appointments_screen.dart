@@ -37,8 +37,16 @@ class _UpcomingAppointmentsScreenState extends ConsumerState<UpcomingAppointment
       ref.watch(pastAppointmentsProvider),
       ref.watch(cancelledAppointmentsProvider),
     ];
-    final async = providers[tab];
+    var async = providers[tab];
     final canCancel = tab == 0;
+
+    // Hide just-cancelled appointments from Upcoming instantly (optimistic).
+    final pendingCancel = ref.watch(optimisticCancelledProvider);
+    if (canCancel && pendingCancel.isNotEmpty) {
+      async = async.whenData(
+        (list) => list.where((a) => !pendingCancel.contains(a.id)).toList(),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -183,25 +191,35 @@ class _UpcomingAppointmentsScreenState extends ConsumerState<UpcomingAppointment
                             }
                           : null,
                       onCancel: canCancel
-                          ? () async {
-                              try {
-                                await cancelAppointmentAndRefresh(ref, a.id);
-                                if (!context.mounted) return;
-                                setState(() => _page = 0);
-                                ref.read(appointmentsTabProvider.notifier).state = 2;
-                                AppSnackbar.show(
-                                  context,
-                                  context.l10n.appointmentsCancelledSuccess,
-                                  success: true,
-                                );
-                              } catch (e) {
+                          ? () {
+                              // Instant feedback: hide the card now, run the
+                              // server cancel + refresh in the background.
+                              ref.read(optimisticCancelledProvider.notifier).update(
+                                    (s) => {...s, a.id},
+                                  );
+                              setState(() => _page = 0);
+                              AppSnackbar.show(
+                                context,
+                                context.l10n.appointmentsCancelledSuccess,
+                                success: true,
+                              );
+                              cancelAppointmentAndRefresh(ref, a.id).then((_) {
+                                ref.read(optimisticCancelledProvider.notifier).update(
+                                      (s) => {...s}..remove(a.id),
+                                    );
+                              }).catchError((Object e) {
+                                // Revert the optimistic hide on failure.
+                                ref.read(optimisticCancelledProvider.notifier).update(
+                                      (s) => {...s}..remove(a.id),
+                                    );
+                                ref.invalidate(upcomingAppointmentsProvider);
                                 if (context.mounted) {
                                   AppSnackbar.show(
                                     context,
                                     e.toString().replaceFirst('Exception: ', ''),
                                   );
                                 }
-                              }
+                              });
                             }
                           : null,
                     );

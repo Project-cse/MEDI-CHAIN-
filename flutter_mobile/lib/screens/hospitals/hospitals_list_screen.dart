@@ -7,6 +7,7 @@ import '../../models/hospital_model.dart';
 import '../../onboarding/providers/onboarding_provider.dart';
 import '../../providers/hospital_provider.dart';
 import '../../routes/route_names.dart';
+import '../../utils/contact_navigation_utils.dart';
 import '../../utils/location_utils.dart';
 import '../../widgets/common/app_loader.dart';
 import '../../widgets/common/app_snackbar.dart';
@@ -128,10 +129,25 @@ class _HospitalsListScreenState extends ConsumerState<HospitalsListScreen> {
 
   void _openHospital(HospitalModel h) {
     if (!h.canOpenDetails) {
-      AppSnackbar.show(context, 'This hospital is outside the MediChain+ network.');
+      // Out-of-network hospital — there is no detail page, so take the user
+      // straight to its exact spot on the map instead.
+      _openOnMap(h);
       return;
     }
     context.push('/hospitals/${h.id}');
+  }
+
+  Future<void> _openOnMap(HospitalModel h) async {
+    final ok = await ContactNavigationUtils.openHospitalLocation(
+      latitude: h.latitude,
+      longitude: h.longitude,
+      mapsLink: h.mapsLink,
+      hospitalName: h.name,
+      address: h.address,
+    );
+    if (!ok && mounted) {
+      AppSnackbar.show(context, 'Could not open maps for this hospital.');
+    }
   }
 
   @override
@@ -277,7 +293,12 @@ class _HospitalsListScreenState extends ConsumerState<HospitalsListScreen> {
                                         return PremiumHospitalDirectoryCard(
                                           hospital: h,
                                           showDistance: showDistance,
-                                          onDetails: () => _openHospital(h),
+                                          // Nearby view: a tap goes to the map at
+                                          // the hospital's exact location. All view:
+                                          // a tap opens the hospital detail page.
+                                          onDetails: () => _viewMode == _HospitalViewMode.nearby
+                                              ? _openOnMap(h)
+                                              : _openHospital(h),
                                           onBook: h.canOpenDetails ? () => _openHospital(h) : null,
                                         );
                                       },

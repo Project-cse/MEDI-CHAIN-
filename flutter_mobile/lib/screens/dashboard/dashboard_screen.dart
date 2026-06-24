@@ -191,7 +191,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               const Icon(Icons.medical_services, size: 22, color: AppColors.logoTeal),
               const SizedBox(width: 6),
               Text(
-                'MediChain+',
+                'MedClues',
                 style: GoogleFonts.poppins(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,

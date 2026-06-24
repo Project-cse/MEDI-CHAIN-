@@ -3,11 +3,21 @@ import 'dart:typed_data';
 
 import 'report_mime_utils.dart';
 
+/// Web has no persistent cache for reports — always re-fetch.
+Future<bool> openCachedReport(
+  String cacheKey,
+  String filename, {
+  String? mimeType,
+  String? fileType,
+}) async =>
+    false;
+
 Future<void> openReportBytes(
   Uint8List bytes,
   String filename, {
   String? mimeType,
   String? fileType,
+  String? cacheKey,
 }) async {
   final safeName = ReportMimeUtils.sanitizeFileName(
     ReportMimeUtils.ensureExtension(filename, fileType: fileType, contentType: mimeType),

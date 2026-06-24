@@ -36,7 +36,10 @@ final telegramLinkServiceProvider = Provider<TelegramLinkService>(
 final appointmentServiceProvider = Provider<AppointmentService>((ref) => AppointmentService(
       ref.watch(apiServiceProvider),
     ));
-final notificationServiceProvider = Provider<NotificationService>((ref) => NotificationService(ref.watch(appointmentServiceProvider)));
+final notificationServiceProvider = Provider<NotificationService>((ref) => NotificationService(
+      ref.watch(apiServiceProvider),
+      ref.watch(appointmentServiceProvider),
+    ));
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository(
       ref.watch(authServiceProvider),

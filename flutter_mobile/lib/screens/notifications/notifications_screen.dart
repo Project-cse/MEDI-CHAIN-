@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../constants/app_colors.dart';
 import '../../models/notification_model.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/service_providers.dart';
 import '../../utils/theme_context.dart';
 import '../../widgets/common/app_empty_state.dart';
 
@@ -28,6 +29,7 @@ class NotificationsScreen extends ConsumerWidget {
               final all = notifications.valueOrNull ?? [];
               ref.read(notificationsReadProvider.notifier).state =
                   all.map((n) => n.id).toSet();
+              ref.read(notificationServiceProvider).markAllRead();
             },
             child: Text(
               'Mark all read',
@@ -48,7 +50,7 @@ class NotificationsScreen extends ConsumerWidget {
               separatorBuilder: (_, __) => Divider(height: 1, indent: 72, color: context.borderColor),
               itemBuilder: (_, i) {
                 final n = items[i];
-                final isRead = read.contains(n.id);
+                final isRead = n.read || read.contains(n.id);
                 return _NotificationTile(notification: n, read: isRead);
               },
             ),
@@ -67,10 +69,20 @@ class _NotificationTile extends ConsumerWidget {
   final NotificationModel notification;
   final bool read;
 
+  bool get _isCancelled =>
+      notification.id.startsWith('cancel_') ||
+      notification.title.toLowerCase().contains('cancel');
+  bool get _isCompleted =>
+      notification.id.startsWith('done_') ||
+      notification.title.toLowerCase().contains('prescription') ||
+      notification.title.toLowerCase().contains('complete');
+
   IconData get _icon {
+    if (_isCancelled) return Icons.cancel_outlined;
+    if (_isCompleted) return Icons.check_circle_outline;
     switch (notification.type) {
       case NotificationType.appointment:
-        return Icons.event_note_outlined;
+        return Icons.event_available_outlined;
       case NotificationType.reminder:
         return Icons.alarm_outlined;
       case NotificationType.system:
@@ -78,10 +90,17 @@ class _NotificationTile extends ConsumerWidget {
     }
   }
 
+  Color _accent(BuildContext context) {
+    if (_isCancelled) return const Color(0xFFE11D48);
+    if (_isCompleted) return const Color(0xFF16A34A);
+    return context.cs.primary;
+  }
+
   void _markRead(WidgetRef ref) {
     ref.read(notificationsReadProvider.notifier).update(
           (s) => {...s, notification.id},
         );
+    ref.read(notificationServiceProvider).markRead(notification.id);
   }
 
   void _open(BuildContext context, WidgetRef ref) {
@@ -99,6 +118,7 @@ class _NotificationTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final canOpen = notification.appointmentId != null && notification.appointmentId!.isNotEmpty;
+    final accent = _accent(context);
 
     return InkWell(
       onTap: canOpen ? () => _open(context, ref) : null,
@@ -109,8 +129,8 @@ class _NotificationTile extends ConsumerWidget {
           children: [
             CircleAvatar(
               radius: 24,
-              backgroundColor: context.highlightBg,
-              child: Icon(_icon, color: context.cs.primary, size: 22),
+              backgroundColor: accent.withValues(alpha: 0.12),
+              child: Icon(_icon, color: accent, size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -147,7 +167,7 @@ class _NotificationTile extends ConsumerWidget {
                         padding: EdgeInsets.zero,
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        foregroundColor: context.cs.primary,
+                        foregroundColor: accent,
                       ),
                       child: Text(
                         'Open the notification',
@@ -168,7 +188,7 @@ class _NotificationTile extends ConsumerWidget {
                   width: 10,
                   height: 10,
                   decoration: BoxDecoration(
-                    color: context.cs.primary,
+                    color: accent,
                     shape: BoxShape.circle,
                   ),
                 ),

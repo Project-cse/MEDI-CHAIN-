@@ -59,18 +59,25 @@ class _DoctorsListScreenState extends ConsumerState<DoctorsListScreen> {
     if (_filter == _DoctorFilter.available) {
       out = out.where((d) => d.available).toList();
     }
-    switch (_filter) {
-      case _DoctorFilter.rating:
-        out.sort((a, b) => (b.rating ?? 0).compareTo(a.rating ?? 0));
-        break;
-      case _DoctorFilter.experience:
-        out.sort((a, b) => b.experienceYears.compareTo(a.experienceYears));
-        break;
-      case _DoctorFilter.available:
-      case _DoctorFilter.all:
-        out.sort((a, b) => a.name.compareTo(b.name));
-        break;
+    // Always surface available doctors first, then apply the chosen ordering.
+    int byAvailability(DoctorModel a, DoctorModel b) {
+      if (a.available == b.available) return 0;
+      return a.available ? -1 : 1;
     }
+
+    out.sort((a, b) {
+      final av = byAvailability(a, b);
+      if (av != 0) return av;
+      switch (_filter) {
+        case _DoctorFilter.rating:
+          return (b.rating ?? 0).compareTo(a.rating ?? 0);
+        case _DoctorFilter.experience:
+          return b.experienceYears.compareTo(a.experienceYears);
+        case _DoctorFilter.available:
+        case _DoctorFilter.all:
+          return a.name.compareTo(b.name);
+      }
+    });
     return out;
   }
 

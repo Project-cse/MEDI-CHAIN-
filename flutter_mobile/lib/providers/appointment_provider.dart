@@ -54,15 +54,20 @@ final bookingInProgressProvider = StateProvider<bool>((_) => false);
 /// 0 = Upcoming, 1 = Completed, 2 = Cancelled (My Appointments tabs).
 final appointmentsTabProvider = StateProvider<int>((_) => 0);
 
-/// Cancel on server, refresh lists, ready for UI to switch to Cancelled tab.
+/// IDs the user just cancelled — hidden from the Upcoming list instantly while
+/// the (slower) server call + refresh complete in the background.
+final optimisticCancelledProvider = StateProvider<Set<String>>((_) => {});
+
+/// Cancel on the server, then refresh the appointment lists. This is meant to
+/// run in the background after the UI has already optimistically removed the
+/// appointment, so the user never waits on the network.
 Future<void> cancelAppointmentAndRefresh(WidgetRef ref, String appointmentId) async {
-  await ref.read(appointmentRepositoryProvider).cancel(appointmentId);
-  ref.invalidate(upcomingAppointmentsProvider);
-  ref.invalidate(pastAppointmentsProvider);
-  ref.invalidate(cancelledAppointmentsProvider);
-  ref.invalidate(appointmentDetailProvider(appointmentId));
-  await Future.wait([
-    ref.refresh(upcomingAppointmentsProvider.future),
-    ref.refresh(cancelledAppointmentsProvider.future),
-  ]);
+  try {
+    await ref.read(appointmentRepositoryProvider).cancel(appointmentId);
+  } finally {
+    ref.invalidate(upcomingAppointmentsProvider);
+    ref.invalidate(pastAppointmentsProvider);
+    ref.invalidate(cancelledAppointmentsProvider);
+    ref.invalidate(appointmentDetailProvider(appointmentId));
+  }
 }
