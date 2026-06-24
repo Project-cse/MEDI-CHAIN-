@@ -56,14 +56,9 @@ class _OnboardingSetupStepState extends ConsumerState<OnboardingSetupStep> {
     final authUser = ref.read(authProvider).user;
     final cached = ref.read(patientProfileProvider).valueOrNull;
     _applyPrefill(cached, authUser);
-    // Prefill an existing emergency contact if we already have one locally.
-    final saved = ref.read(emergencySettingsProvider).valueOrNull?.savedContacts;
-    if (saved != null && saved.isNotEmpty) {
-      final c = saved.first;
-      _ecName.text = c.name;
-      _ecPhone.text = c.phone;
-      _ecRelation.text = c.relation ?? '';
-    }
+    // NOTE: emergency contact is intentionally left blank — the user enters it
+    // here. We never pre-fill it from a saved contact, so a fresh signup can't
+    // show someone else's / a previous session's details.
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
@@ -88,10 +83,11 @@ class _OnboardingSetupStepState extends ConsumerState<OnboardingSetupStep> {
     return null;
   }
 
-  /// Background refresh — fills missing fields + the verified flag, never blocks.
+  /// Force a fresh profile fetch so the details just entered at signup
+  /// (name, phone, gender, DOB, blood group) auto-fill here. Never blocks.
   Future<void> _bootstrap() async {
     try {
-      final p = await ref.read(patientProfileProvider.future).timeout(const Duration(seconds: 10));
+      final p = await ref.refresh(patientProfileProvider.future).timeout(const Duration(seconds: 10));
       if (!mounted) return;
       setState(() {
         if (p.emailVerified) _emailVerified = true;
